@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  COORDINATOR
+  HOD
+  FACULTY
+  STUDENT
+}
+
+model Department {
+  id       String @id @default(cuid())
+  name     String
+  timezone String @default("Asia/Kolkata")
+  users    User[]
+}
+
+model User {
+  id           String @id @default(cuid())
+  email        String @unique
+  name         String
+  passwordHash String
+  active       Boolean @default(true)
+  role         Role
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  @@index([departmentId])
+}
