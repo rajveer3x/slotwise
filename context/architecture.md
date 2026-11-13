@@ -18,7 +18,7 @@ src/
   app/
     (auth)/login/
     (app)/dashboard/
-    (app)/admin/
+    (app)/admin/ (master data; /accounts for ADMIN account access)
     (app)/timetable/
     (app)/leave/
     (app)/resolutions/
@@ -71,3 +71,7 @@ Return a consistent discriminated result such as `{ ok: true, data }` or `{ ok: 
 ## Tests
 
 Unit-test interval overlap, qualification filters, tier selection, scoring, ledger and workload formulas. Integration-test actual PostgreSQL transactions, permissions, idempotency, rollback, and competing writes. Browser-test the main role-based leave-to-publication workflow and keyboard timetable editing. Freeze the clock in time-sensitive fixtures. Use synthetic data and reset only an explicitly identified test database.
+
+## Implemented master-data boundary (002)
+
+`features/master-data/config.ts` describes reusable fields and serializable view models; `schema.ts` owns per-entity Zod validation. `server/services/master-data.ts` owns scoped queries, actor/department locking, fixed identity links, dependency validation, version checks, reversible archival and retry receipts. `actions.ts` translates browser dates/times/checkboxes and revalidates `/admin` after commits. `/admin/accounts` retains feature 001's separate ADMIN service. Local-date strings and minute-of-day integers are configuration values; dated schedule instants/reservations remain feature 003 and publication work. MasterMutationReceipt is intentionally distinct from later scheduling publication receipts.

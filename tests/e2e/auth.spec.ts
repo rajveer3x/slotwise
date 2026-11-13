@@ -46,20 +46,20 @@ test("invalid login is generic, throttled on server and creates no session", asy
 });
 test("student direct admin navigation is rejected; revoked session loses access", async ({ page }) => {
   const user = await account("STUDENT"); await login(page, user.email); await expect(page).toHaveURL(/\/dashboard$/);
-  await page.goto("/admin"); await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
+  await page.goto("/admin/accounts"); await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
   await db.user.update({ where: { id: user.id }, data: { active: false } });
   await page.goto("/dashboard"); await expect(page).toHaveURL(/\/login$/);
 });
 test("admin mutation uses current database role, then succeeds after reauthorization", async ({ page }) => {
   const user = await account("ADMIN"); const target = await account("FACULTY");
   await db.user.update({ where: { id: target.id }, data: { name: "Unique target" } });
-  await login(page, user.email); await expect(page).toHaveURL(/\/dashboard$/); await page.goto("/admin");
+  await login(page, user.email); await expect(page).toHaveURL(/\/dashboard$/); await page.goto("/admin/accounts");
   await db.user.update({ where: { id: user.id }, data: { role: "STUDENT" } });
   const card = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Unique target" }) });
   await card.getByRole("button", { name: "Revoke Unique target" }).click();
   await expect(page.getByText("You do not have permission to change this account.")).toBeVisible();
   expect((await db.user.findUniqueOrThrow({ where: { id: target.id } })).active).toBe(true);
-  await db.user.update({ where: { id: user.id }, data: { role: "ADMIN" } }); await page.goto("/admin");
+  await db.user.update({ where: { id: user.id }, data: { role: "ADMIN" } }); await page.goto("/admin/accounts");
   await card.getByRole("button", { name: "Revoke Unique target" }).click(); await expect(card.getByRole("status")).toContainText("Account revoked");
   expect((await db.user.findUniqueOrThrow({ where: { id: target.id } })).active).toBe(false);
 });
@@ -84,7 +84,7 @@ test("pending sign-in prevents duplicate submissions", async ({ page }) => {
 test("stale account form explains refresh and does not overwrite current access", async ({ page }) => {
   const admin = await account("ADMIN"); const target = await account("FACULTY");
   await db.user.update({ where: { id: target.id }, data: { name: "Stale target" } });
-  await login(page, admin.email); await expect(page).toHaveURL(/\/dashboard$/); await page.goto("/admin");
+  await login(page, admin.email); await expect(page).toHaveURL(/\/dashboard$/); await page.goto("/admin/accounts");
   await db.user.update({ where: { id: target.id }, data: { active: false } });
   const card = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Stale target", exact: true }) });
   await card.getByRole("button", { name: "Revoke Stale target" }).click();
@@ -112,7 +112,7 @@ for (const width of [320, 390, 768, 1440]) {
     expect(await page.getByLabel("Email", { exact: true }).evaluate((e: HTMLInputElement) => e.validity.valueMissing)).toBe(true);
     await page.getByLabel("Email", { exact: true }).fill(user.email); await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByLabel("Password", { exact: true }).press("Enter"); await expect(page).toHaveURL(/\/dashboard$/);
-    for (const path of ["/dashboard", "/admin"]) {
+    for (const path of ["/dashboard", "/admin/accounts"]) {
       await page.goto(path);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
@@ -124,7 +124,7 @@ for (const width of [320, 390, 768, 1440]) {
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
       await page.keyboard.press("Escape"); await expect(menu).toBeFocused();
     }
-    for (const path of ["/dashboard", "/admin"]) {
+    for (const path of ["/dashboard", "/admin/accounts"]) {
       await page.goto(path); await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }

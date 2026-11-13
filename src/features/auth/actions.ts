@@ -9,7 +9,7 @@ export async function updateAccountAccess(_previous: { ok: boolean; message: str
     const input = z.object({ userId: z.string().min(1).max(100), active: bool, expectedActive: bool }).safeParse(Object.fromEntries(data));
     if (!input.success) return { ok: false, message: "Invalid account change. Refresh and try again." };
     const result = await setAccountActive(input.data);
-    revalidatePath("/admin");
+    revalidatePath("/admin/accounts");
     return { ok: result.ok, message: result.message };
   } catch (error) {
     if (error instanceof AccessError) return { ok: false, message: error.code === "UNAUTHORIZED" ? "Your session is no longer active. Sign in again." : "You do not have permission to change this account." };

@@ -1,6 +1,6 @@
 # Feature specifications and prompts
 
-Each numbered file is both an implementation specification and a copyable agent prompt. All features are planned, not implemented. Shared context owns common rules; acceptance criteria below add feature-specific requirements.
+Each numbered file is both an implementation specification and a copyable agent prompt. Implementation status and actual verification are recorded in [progress](../progress.md). Shared context owns common rules; acceptance criteria below add feature-specific requirements.
 
 ## Build index
 

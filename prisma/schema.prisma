@@ -19,7 +19,21 @@ model Department {
   id       String @id @default(cuid())
   name     String
   timezone String @default("Asia/Kolkata")
+  onlineTeachingEnabled Boolean @default(false)
   users    User[]
+  semesters Semester[]
+  holidays Holiday[]
+  faculty Faculty[]
+  availability FacultyAvailability[]
+  courses Course[]
+  qualifications FacultyQualification[]
+  sections Section[]
+  memberships SectionMembership[]
+  rooms Room[]
+  slots TimeSlot[]
+  allocations CourseAllocation[]
+  masterReceipts MasterMutationReceipt[]
+
 }
 
 model User {
@@ -31,5 +45,212 @@ model User {
   role         Role
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  faculty Faculty?
+  memberships SectionMembership[]
+  @@unique([id, departmentId])
+  @@index([departmentId])
+}
+
+enum TeachingType {
+  THEORY
+  LAB
+}
+
+model Semester {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  code String
+  name String
+  startDate String @db.VarChar(10)
+  endDate String @db.VarChar(10)
+  active Boolean @default(false)
+  scheduleRevision Int @default(0)
+  holidays Holiday[]
+  sections Section[]
+  allocations CourseAllocation[]
+  @@unique([departmentId, code])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model Holiday {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  semesterId String
+  semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  date String @db.VarChar(10)
+  name String
+  @@unique([departmentId, semesterId, date])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model Faculty {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  userId String @unique
+  user User @relation(fields: [userId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  @@unique([userId, departmentId])
+  designation String
+  targetMinutesPerWeek Int
+  maxMinutesPerDay Int
+  maxMinutesPerWeek Int
+  availability FacultyAvailability[]
+  qualifications FacultyQualification[]
+  allocations CourseAllocation[]
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model FacultyAvailability {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  weekday Int
+  startMinute Int
+  endMinute Int
+  @@unique([departmentId, facultyId, weekday, startMinute, endMinute])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model Course {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  code String
+  name String
+  type TeachingType
+  requiredContactMinutes Int
+  qualifications FacultyQualification[]
+  allocations CourseAllocation[]
+  @@unique([departmentId, code])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model FacultyQualification {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  courseId String
+  course Course @relation(fields: [courseId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  @@unique([departmentId, facultyId, courseId])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model Section {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  semesterId String
+  semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  code String
+  name String
+  strength Int
+  preferredPeriodsPerDay Int
+  memberships SectionMembership[]
+  allocations CourseAllocation[]
+  @@unique([departmentId, semesterId, code])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model SectionMembership {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  sectionId String
+  section Section @relation(fields: [sectionId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  userId String
+  user User @relation(fields: [userId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  isRepresentative Boolean @default(false)
+  @@unique([departmentId, sectionId, userId])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model Room {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  code String
+  name String
+  type TeachingType
+  capacity Int
+  @@unique([departmentId, code])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model TimeSlot {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  label String
+  weekday Int
+  startMinute Int
+  endMinute Int
+  @@unique([departmentId, weekday, startMinute, endMinute])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model CourseAllocation {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  archived Boolean @default(false)
+  version Int @default(1)
+  courseId String
+  course Course @relation(fields: [courseId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  sectionId String
+  section Section @relation(fields: [sectionId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  semesterId String
+  semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  weeklyPeriods Int
+  requiredContactMinutes Int
+  @@unique([departmentId, semesterId, sectionId, courseId])
+  @@unique([id, departmentId])
+  @@index([departmentId, archived])
+}
+
+model MasterMutationReceipt {
+  id String @id
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  actorId String
+  fingerprint String
+  recordId String
   @@index([departmentId])
 }

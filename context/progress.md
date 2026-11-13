@@ -4,7 +4,7 @@ Last updated: 2026-11-13
 
 ## Verified current state
 
-Features 000 and 001 are implemented and verified locally. Feature 001 adds seeded credential login/logout, current database-backed authorization, five role dashboards and department-scoped account-access administration. Features 002–017 are not implemented. The feature 000 ESLint 9 support limitation remains open; lint still passes. A Git repository now exists on `main` with origin `https://github.com/rajveer3x/slotwise.git`; its initial README commit is pushed. The application source is being committed locally in this handoff. No deployment exists. The records below for feature 000 are historical; the feature 001 handoff at the end describes current behaviour.
+Features 000–002 are implemented and verified locally. Feature 002 adds persistent department-scoped master-data CRUD, reversible archival, explicit qualifications and deterministic synthetic teaching fixtures in Computing and Design. `/admin` serves ADMIN/COORDINATOR master data; ADMIN-only account access is now `/admin/accounts`. Features 003–017 remain unimplemented. The feature 000 ESLint 9 support limitation remains open; lint passes. Git is on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. The subsequent GitHub handoff is recorded at the end. Earlier handoffs below are historical; the feature 002 handoff describes current behaviour.
 
 ## MVP build order
 
@@ -12,7 +12,7 @@ Features 000 and 001 are implemented and verified locally. Feature 001 adds seed
 | --- | --- | --- | --- |
 | 000 | Project foundation | None | Implemented; lint-tooling follow-up unfinished |
 | 001 | Authentication and roles | 000 | Complete; local demo verified |
-| 002 | Master data and demo fixtures | 001 | Not started |
+| 002 | Master data and demo fixtures | 001 | Complete; local persistence, scope, browser and seed checks verified |
 | 003 | Timetable and clash detection | 002 | Not started |
 | 004 | Leave requests and impact preview | 003 | Not started |
 | 005 | Explainable resolution engine | 004 | Not started |
@@ -37,7 +37,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 - PostgreSQL, Prisma and Tailwind are installed/verified; feature 001 adds stable NextAuth.js v4 and Argon2. tech.md owns installed versions and commands.
 - Demo policy and state transitions are documented in domain-rules.md. Keep configurable policy distinct from actual university requirements.
 - No real personal or historical university data supplied. All demo metrics must be labelled synthetic.
-- Documentation creation is complete; foundation application code now exists. Authentication is implemented; scheduling/product workflows remain pending.
+- Documentation creation is complete; foundation application code now exists. Authentication and master data are implemented; timetable and leave/recovery workflows remain pending.
 - UI design revision: adapt the supplied Notion marketing reference into SlotWise's warm neutral workspace, readable data layouts and blue action palette. ui-ux.md owns the implementation design; reference-specific instructions and exact marketing measurements are not requirements.
 - Animmaster Lib, Skiper UI and Vengeance UI are optional sources. No component package or paid code was installed; project-owned CSS/shadcn primitives remain the baseline. Check the exact component before adoption.
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 001 as requested. Feature 002 (master data and demo fixtures) is next only on a separate request; no teaching profiles, sections, timetable data or later workflow has been implemented. The inherited supported-lint-toolchain migration remains a maintenance item and was not expanded into this auth task.
+Stop after feature 002 as requested. Feature 003 (timetable and clash detection) is the next product feature only on a separate request; master-data dependencies now exist. Published-schedule guards must be added to affected master-data writes when publication exists. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -219,3 +219,78 @@ Other corrected check failures: initial migration diff required a shadow databas
 - Added foundation/auth source, tests, migrations, package lock and project context to version control after the README-only initial commit. Local `.env`, dependencies, generated Prisma files, Next output and browser artifacts are excluded by `.gitignore`.
 - This handoff changes version-control documentation only; application code is unchanged from the verified feature 001 implementation. The feature's recorded automated checks remain the latest application results; they were not rerun solely for committing unchanged code.
 - Commit requested locally; no push is part of this request. Feature 002 remains unstarted.
+
+
+## Feature 002 handoff — 2026-11-13
+
+**Status:** complete; all five numbered acceptance criteria verified locally. Feature 003 was not started. No dependency was added, no commit/push/deployment was performed, and no real university data was used.
+
+### What changed and key paths
+
+- `prisma/schema.prisma` and `prisma/migrations/20261113000000_master_data/migration.sql`: semester/holidays, faculty/availability, courses/qualifications, sections/memberships, rooms, teaching slots, allocations and retry receipts. Department ownership is part of relation keys, with restrictive foreign keys, uniqueness, positive count/limit checks, valid local date/interval checks and one active unarchived semester per department. Department online teaching defaults false; semester schedule revision starts at zero.
+- `src/server/services/master-data.ts`: authorized scoped reads and transactional writes; current active ADMIN/COORDINATOR permissions; actor and department locks; per-record versions; safe validation/duplicate/scope feedback; payload/actor-bound receipts checked before stale-version rejection. Competing writes across distinct managers serialize. Qualifications, matching allocation semesters, role-correct accounts, one section per student/semester, semester/holiday boundaries and adjacent/non-overlapping intervals are enforced.
+- `src/features/master-data/{config,schema,actions}.ts` and `components/{master-form,feedback}.tsx`: reusable typed field descriptions, per-entity Zod schemas, Server Action adapters, controlled forms, pending controls, retained failed input and explicit stale-page refresh. Refreshing server props after another form saves does not silently replace an unsaved draft or adopt a newer expected version. Saved results appear only after database commit.
+- `src/app/(app)/admin/page.tsx`: URL category/search/archive filters and responsive labelled record lists, create/edit forms, dependency-aware archive/restore disclosures, empty/no-match states and timezone/synthetic labels. All eleven entity categories are available. Account access moved to `admin/accounts/page.tsx`; shell navigation, dashboard copy, auth action revalidation and auth browser tests follow that route. Existing workspace loading/error boundaries are reused; error copy now covers workspace data.
+- `prisma/demo-fixtures.ts` and `prisma/seed.ts`: transactional deterministic create-only upserts. Computing has two sections, six faculty, four courses, three rooms including a lab, a semester/holiday, student memberships, explicit qualifications, availability, weekly slots and eight allocations. Design has a smaller independent fixture. Existing users, passwords, access and teaching edits are preserved. Production seeding is refused; there is no reset. All identities, capacities, teaching targets/limits and dates are project-authored demo examples.
+- Added `tests/unit/master-data.test.ts`, `tests/integration/master-data.test.ts` and `tests/e2e/master-data.spec.ts`. Updated README, tech.md and architecture.md for actual routes, storage, demo and server/client boundaries; corrected stale design/spec-index status text to point to verified progress. Next's generated `next-env.d.ts` now references production route types after the build.
+
+### Acceptance criteria
+
+| Criterion | Actual verification |
+| --- | --- |
+| 1. Scoped valid changes persist after reload | Browser created all eleven entity types, including a room and qualified allocation; reload and real PostgreSQL assertions passed. Integration checks edit/archive/restore every entity, including reassignment to another qualified faculty member. |
+| 2. Invalid intervals/capacity/duplicate codes/unrelated FKs rejected with field feedback | Unit boundaries, real-service validation and composite-FK SQL checks passed; duplicate-code browser submission shows field feedback and retains input. Semester/holiday, one-active-semester, membership and qualification rules were exercised. |
+| 3. Foreign department reads/mutations denied | Direct service checks reject foreign record IDs and unrelated parent IDs. All returned snapshot records stay in scope; foreign room content stays absent in the browser. Anonymous, HoD, faculty, student, revoked-account and changed-role attempts are rejected server-side. |
+| 4. Referenced records survive removal | Every entity supports reversible archive/restore. Referenced faculty retains allocations and its user. New relationships reject archived parents. UI explains preserved references, reserved codes and restoration. Rooms cannot yet have timetable references because timetable/publication is a later feature. |
+| 5. Seed reruns do not duplicate records | Seed ran twice against the local demo database. Integration checks rerun a unique namespace, compare every entity/user count, preserve an edited capacity and existing password hash, and verify production refusal. |
+
+### Commands and actual results
+
+Commands used Node **24.22.3** via `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`; npm **11.17.0**, local PostgreSQL **17.11** and installed Chrome. Integration/browser fixtures used only `slotwise_auth_test` and cleaned their own unique departments; no database was reset.
+
+| Command/check | Result |
+| --- | --- |
+| `npm run db:migrate` | Passed; migration 20261113000000 applied to the persistent local demo database. |
+| `npm run db:test:migrate` | Passed; the same migration applied to isolated slotwise_auth_test. |
+| `npm run db:seed` (twice) | Passed both times; deterministic synthetic Computing/Design fixtures, no reset or duplicate failure. |
+| `npm run db:validate` / `npm run db:check` | Passed; schema valid and real Prisma SELECT 1 succeeded. |
+| `npm run typecheck` | Passed; Prisma generation, Next route generation and strict TypeScript. |
+| `npm run lint` | Passed, zero warnings. Existing ESLint 9 support limitation remains. |
+| `npm test` | Passed: 17 tests across four files, including four master-data boundary tests. |
+| `npm run test:integration` | Passed: 20 tests, including 12 master-data tests exercising PostgreSQL scopes, all-entity edits/archive/restore, real constraints, seed preservation, retries, distinct-manager competing writes and actor revocation while a mutation waits. |
+| `npm run build` | Passed; production Webpack build includes /admin and /admin/accounts. |
+| `npm run check:client-bundle` | Passed; 30 emitted client bundles contained no Prisma markers, database URLs or configured secrets. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | Passed: all 30 browser tests, including seven new master-data flows, against the production build. |
+| `git diff --check` | Passed. |
+
+Browser verification includes keyboard-only room creation, a held Server Action with disabled pending controls and one submission, direct role revocation with an already rendered form, reload persistence, search/no-match, duplicate field errors, draft preservation across another form's save, stale-version rejection, explicit refresh and archive/restore. Rendered faculty/room/allocation screens were checked at 320/390/768/1440px, reduced motion and 200% CSS layout scaling; no page-wide overflow or browser errors and zero axe WCAG A/AA findings in those checks. Representative desktop/mobile room and long-name faculty screenshots under ignored `test-results/` were opened and visually inspected. An initial screenshot revealed tests were capturing the loading boundary; the checks now explicitly await rendered content and were rerun. The first browser attempt also caught an ambiguous test locator, and the allocation reassignment check required the archival test to select a currently referenced faculty; those test fixtures/locators were corrected and final checks pass. No comprehensive screen-reader claim is made.
+
+### Limits, demo and next step
+
+- All removal is reversible archival, including unreferenced rows. Archived codes and identity relationships remain reserved; restore/edit those records. Fields marked fixed identify the record (for example section → semester). Allocation faculty is editable, with current qualification checks. Archiving preserves dependencies; it does not delete accounts or invalidate historical foreign keys. Restoring a semester does not automatically activate it.
+- No timetable/publication exists yet, so no published-schedule validation is claimed. The future scheduling/publication feature must recheck archived resources and guard every master-data edit affecting published occurrences using the shared scheduling protocol. No reservations, generated classes, delivery, CSV, messaging, account provisioning or role-editing UI were added.
+- Dates are local canonical calendar strings; times are weekday/minute configuration. Search uses department-scoped demo-sized snapshots; pagination/large-scale data optimization and automatic live updates are not implemented. Existing auth limiter/session and lint-tooling limitations remain as recorded in feature 001/000.
+- Demo: `npm run dev`, sign in as `coordinator@demo.slotwise.test` using the local seed password, open Master data → Rooms, create/edit/reload/archive/restore a room and reject a duplicate code. For a new allocation, create a course and explicit faculty qualification, then select a matching semester/section and enter weekly periods plus semester minutes. Seeded course/section allocation pairs already exist and are unique. ADMIN account access is at `/admin/accounts`.
+- **React/Next.js concepts:** server-rendered authorized reads, Client Components and controlled form state, reusable typed components/configuration, React 19 `useActionState`, validated Server Actions, URL filters, loading/error boundaries and `revalidatePath`; database transactions, server authorization, optimistic versions and idempotent receipts provide the persistence boundary.
+
+**Next recommended product feature:** 003 timetable and clash detection, only when separately requested. Stop here.
+
+## Feature 002 verification follow-up — 2026-11-13
+
+**Status:** verified locally after reviewing the implementation against its specification and rerunning checks. Two input edge defects were reproduced with failing regression checks and fixed; no remaining blocker was found in the tested feature-002 scope. Later timetable/publication work and existing tooling/deployment limitations remain as documented above.
+
+- `src/app/(app)/admin/page.tsx`: repeated URL search parameters previously arrived as arrays and made `q.trim()` throw. Normalize category, search and archive parameters to their first value. A production-browser regression now verifies repeated parameters load the correct category/search/archive state.
+- `src/features/master-data/schema.ts` and `actions.ts`: JavaScript coercion previously treated null/blank/boolean start minutes as a valid midnight. Require an explicit numeric/string minute value, and accept browser clock values only in valid HH:MM form. Missing/invalid clock values receive server-side field feedback; explicit midnight remains valid. Unit and real-database regressions prove rejection without a write; a browser test bypasses native required-field validation and verifies server rejection plus retained input.
+- Regression files: `tests/unit/master-data.test.ts`, `tests/integration/master-data.test.ts`, `tests/e2e/master-data.spec.ts`. No dependency, schema/migration, account or production configuration change was needed. Existing working-tree changes were preserved.
+- Fresh checks with Node 24.22.3: `npm run typecheck`, `npm run lint`, `npm run build`, `npm run db:validate`, `npm run db:check`, `npm run db:test:migrate` (no pending migrations), `npm run check:client-bundle` (30 bundles) and `git diff --check` all passed. `npm test`: **18/18**; `npm run test:integration`: **21/21**; `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e`: **32/32** against the fresh production build.
+- Read-only checks of the persistent local demo database confirmed Computing has six faculty, two sections, four courses, three rooms, two memberships, one semester and eight allocations; Design has one of each. Tests reran seed idempotency/preservation in the isolated test database; the main demo data was not reset or modified by this follow-up.
+- Browser coverage again passed login/logout, every master-data create flow, persistent reloads, role/department denial, duplicate/invalid input, archive/restore, stale edits, pending/double-submission handling, keyboard use and responsive/axe checks at 320/390/768/1440px with reduced motion and 200% CSS scaling. Fresh desktop room and mobile long-name faculty screenshots were opened and visually inspected; no layout defect was observed. Full screen-reader/deployed-environment verification is not claimed.
+- Demo remains `npm run dev` → sign in as the seeded coordinator → Master data. This verification reinforces the existing React/Next.js concepts: controlled form state, Server Actions with server-side validation, Server Components and URL-filter handling. Next product feature remains 003, only on a separate request.
+
+
+## Feature 002 GitHub handoff — 2026-11-13
+
+- User requested committing and pushing the verified master-data implementation and its verification fixes to the configured repository, `https://github.com/rajveer3x/slotwise.git`, on the existing `main` branch.
+- Fetched origin before preparing the commit; local and remote main matched. The commit includes feature 002 code, migration, synthetic fixture generator, regression tests and context updates. No force push, deployment or later feature is part of this handoff.
+- Local `.env`, generated Prisma output, Next build output, dependencies and test screenshots/traces remain excluded. Next's already tracked declaration file reflects the successful production build. Staged whitespace and configured-secret checks passed before commit.
+- Application code is unchanged since the verification follow-up: 18 unit, 21 integration and 32 browser tests passed, together with typecheck, lint, build and database/client-bundle checks. Only this version-control handoff note was added; those application checks were not rerun solely for the documentation change. The push result is verified against the remote branch and reported in chat.
