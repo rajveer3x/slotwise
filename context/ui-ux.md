@@ -1,6 +1,6 @@
 # SlotWise UI and UX
 
-Design revision: 2026-11-12. Status: shared design specification. Foundation, authentication and master-data screens are implemented locally; actual rendered verification is recorded in progress.md. Later workflow screens remain planned.
+Design revision: 2026-11-12. Status: shared design specification. Foundation, authentication, master-data and manual timetable screens are implemented locally; actual rendered verification is recorded in progress.md. Later workflow screens remain planned.
 
 ## Design direction
 

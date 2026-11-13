@@ -33,6 +33,14 @@ model Department {
   slots TimeSlot[]
   allocations CourseAllocation[]
   masterReceipts MasterMutationReceipt[]
+  timetableVersions TimetableVersion[]
+  timetableEntries TimetableEntry[]
+  obligations TeachingObligation[]
+  occurrences ClassOccurrence[]
+  reservations ResourceReservation[]
+  scheduleReceipts MutationReceipt[]
+  auditEvents AuditEvent[]
+  notifications Notification[]
 
 }
 
@@ -47,6 +55,7 @@ model User {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   faculty Faculty?
   memberships SectionMembership[]
+  notifications Notification[]
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -71,6 +80,7 @@ model Semester {
   holidays Holiday[]
   sections Section[]
   allocations CourseAllocation[]
+  timetableVersions TimetableVersion[]
   @@unique([departmentId, code])
   @@unique([id, departmentId])
   @@index([departmentId, archived])
@@ -92,6 +102,7 @@ model Holiday {
 }
 
 model Faculty {
+  occurrences ClassOccurrence[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -160,6 +171,7 @@ model FacultyQualification {
 }
 
 model Section {
+  occurrences ClassOccurrence[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -195,6 +207,8 @@ model SectionMembership {
 }
 
 model Room {
+  entries TimetableEntry[]
+  occurrences ClassOccurrence[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -240,9 +254,150 @@ model CourseAllocation {
   semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
   weeklyPeriods Int
   requiredContactMinutes Int
+  entries TimetableEntry[]
+  obligations TeachingObligation[]
   @@unique([departmentId, semesterId, sectionId, courseId])
   @@unique([id, departmentId])
   @@index([departmentId, archived])
+}
+
+enum TimetableStatus {
+  DRAFT
+  PUBLISHED
+}
+enum SchedulingStatus {
+  ACTIVE
+  CANCELLED
+}
+enum DeliveryStatus {
+  PENDING
+  HELD
+  NOT_HELD
+}
+enum ResourceType {
+  FACULTY
+  SECTION
+  ROOM
+}
+model TimetableVersion {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  semesterId String
+  semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  status TimetableStatus @default(DRAFT)
+  version Int @default(1)
+  baseScheduleRevision Int
+  effectiveFrom String @db.VarChar(10)
+  effectiveTo String @db.VarChar(10)
+  publishedAt DateTime? @db.Timestamptz(3)
+  entries TimetableEntry[]
+  @@unique([id, departmentId])
+  @@index([departmentId, semesterId, status])
+}
+model TimetableEntry {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  timetableVersionId String
+  timetableVersion TimetableVersion @relation(fields: [timetableVersionId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  seriesId String
+  allocationId String
+  allocation CourseAllocation @relation(fields: [allocationId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  roomId String
+  room Room @relation(fields: [roomId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  weekday Int
+  startMinute Int
+  endMinute Int
+  occurrences ClassOccurrence[]
+  @@unique([timetableVersionId, seriesId])
+  @@unique([id, departmentId])
+}
+model TeachingObligation {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  allocationId String
+  allocation CourseAllocation @relation(fields: [allocationId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  seriesId String
+  weekDate String @db.VarChar(10)
+  originalDate String @db.VarChar(10)
+  requiredMinutes Int
+  occurrences ClassOccurrence[]
+  @@unique([departmentId, seriesId, weekDate])
+  @@unique([id, departmentId])
+}
+model ClassOccurrence {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  entryId String
+  entry TimetableEntry @relation(fields: [entryId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  teachingObligationId String
+  teachingObligation TeachingObligation @relation(fields: [teachingObligationId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  sectionId String
+  section Section @relation(fields: [sectionId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  roomId String
+  room Room @relation(fields: [roomId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  localDate String @db.VarChar(10)
+  startAt DateTime @db.Timestamptz(3)
+  endAt DateTime @db.Timestamptz(3)
+  schedulingStatus SchedulingStatus @default(ACTIVE)
+  deliveryStatus DeliveryStatus @default(PENDING)
+  // Future leave-resolution publication sets this; template revisions fail closed.
+  resolved Boolean @default(false)
+  replacesId String? @unique
+  replaces ClassOccurrence? @relation("Replacement", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacement ClassOccurrence? @relation("Replacement")
+  reservations ResourceReservation[]
+  @@unique([entryId, localDate])
+  @@unique([id, departmentId])
+  @@index([departmentId, startAt, schedulingStatus])
+}
+model ResourceReservation {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  occurrenceId String
+  occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  resourceType ResourceType
+  resourceId String
+  startAt DateTime @db.Timestamptz(3)
+  endAt DateTime @db.Timestamptz(3)
+  @@unique([occurrenceId, resourceType])
+}
+model MutationReceipt {
+  id String @id
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  actorId String
+  fingerprint String
+  result Json
+}
+model AuditEvent {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  actorId String
+  action String
+  entityId String
+  before Json
+  after Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model Notification {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  recipientId String
+  recipient User @relation(fields: [recipientId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  changeId String
+  message String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  readAt DateTime? @db.Timestamptz(3)
+  @@unique([recipientId, changeId])
 }
 
 model MasterMutationReceipt {

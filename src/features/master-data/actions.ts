@@ -13,6 +13,6 @@ export async function saveMasterRecord(_previous: MasterResult, form: FormData):
     else data[field.key] = value;
   }
   const result = await mutateMasterData({ kind, operation: form.get("operation"), id: form.get("id") || undefined, expectedVersion: form.get("expectedVersion") || undefined, requestId: form.get("requestId"), data });
-  if (result.ok) revalidatePath("/admin");
+  if (result.ok) { revalidatePath("/admin"); revalidatePath("/timetable"); }
   return result;
 }

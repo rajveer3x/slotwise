@@ -11,7 +11,7 @@ export function AppShell({ name, role, department, children }: { name: string; r
   const dialog = useRef<HTMLDialogElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const links = [{ href: "/dashboard", label: "Dashboard" }, ...(["ADMIN", "COORDINATOR"].includes(role) ? [{ href: "/admin", label: "Master data" }] : []), ...(role === "ADMIN" ? [{ href: "/admin/accounts", label: "Account access" }] : [])];
+  const links = [{ href: "/dashboard", label: "Dashboard" }, { href: "/timetable", label: "Timetable" }, ...(["ADMIN", "COORDINATOR"].includes(role) ? [{ href: "/admin", label: "Master data" }] : []), ...(role === "ADMIN" ? [{ href: "/admin/accounts", label: "Account access" }] : [])];
   const nav = <nav aria-label="Main navigation" className="grid gap-2">{links.map(link => <Link key={link.href} href={link.href} aria-current={path === link.href ? "page" : undefined} className={`rounded-control border-l-2 px-3 py-3 text-sm ${path === link.href ? "border-primary bg-primary-tint font-medium text-info" : "border-transparent hover:bg-surface-hover"}`} onClick={() => dialog.current?.close()}>{link.label}</Link>)}</nav>;
   return <div className="app-shell">
     <aside className="app-sidebar"><Brand /><p className="my-6 text-sm break-words text-text-secondary">{department}<br />{role}</p>{nav}</aside>

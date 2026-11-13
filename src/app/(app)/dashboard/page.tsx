@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     <h1 className="text-2xl font-semibold md:text-[28px]">Welcome, {user.name}</h1>
     <p className="mt-4">{descriptions[user.role]}</p>
     <p className="mt-4 text-sm text-text-secondary">Institution timezone: {user.department.timezone}</p>
-    <section className="mt-8 rounded-panel border border-border-subtle bg-surface-subtle p-6" aria-labelledby="workspace-status"><h2 id="workspace-status" className="text-lg font-semibold">Your account is ready</h2><p className="mt-2 text-text-secondary">Master data configuration is available to administrators and coordinators. Timetable and leave workflows will be added in later features.</p>{["ADMIN", "COORDINATOR"].includes(user.role) && <Link href="/admin" className="inline-link mt-4 inline-block">Manage master data</Link>}</section>
+    <section className="mt-8 rounded-panel border border-border-subtle bg-surface-subtle p-6" aria-labelledby="workspace-status"><h2 id="workspace-status" className="text-lg font-semibold">Your account is ready</h2><p className="mt-2 text-text-secondary">Your published timetable is available. Administrators and coordinators can edit weekly drafts, review conflicts and publish dated classes. Leave workflows remain planned.</p><Link href="/timetable" className="inline-link mt-4 mr-4 inline-block">View timetable</Link>{["ADMIN", "COORDINATOR"].includes(user.role) && <Link href="/admin" className="inline-link mt-4 inline-block">Manage master data</Link>}</section>
     <p className="mt-6 text-sm text-text-secondary">Synthetic demo identities. No live university records.</p>
   </main>;
 }

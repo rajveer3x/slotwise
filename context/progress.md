@@ -1,10 +1,10 @@
 # SlotWise progress
 
-Last updated: 2026-11-13
+Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–002 are implemented and verified locally. Feature 002 adds persistent department-scoped master-data CRUD, reversible archival, explicit qualifications and deterministic synthetic teaching fixtures in Computing and Design. `/admin` serves ADMIN/COORDINATOR master data; ADMIN-only account access is now `/admin/accounts`. Features 003–017 remain unimplemented. The feature 000 ESLint 9 support limitation remains open; lint passes. Git is on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. The subsequent GitHub handoff is recorded at the end. Earlier handoffs below are historical; the feature 002 handoff describes current behaviour.
+Features 000–003 are implemented and verified locally. Feature 003 adds manual timetable drafts, conflict explanations and alternatives, dated publication, stable obligations, reservations and publication-aware master-data guards. `/timetable` supports scoped published reads, section/faculty/room views, desktop drag and keyboard/touch editing, a mobile agenda and explicit preview/publication. Features 004–017 remain unimplemented. The feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time; the feature 003 handoff is current.
 
 ## MVP build order
 
@@ -13,7 +13,7 @@ Features 000–002 are implemented and verified locally. Feature 002 adds persis
 | 000 | Project foundation | None | Implemented; lint-tooling follow-up unfinished |
 | 001 | Authentication and roles | 000 | Complete; local demo verified |
 | 002 | Master data and demo fixtures | 001 | Complete; local persistence, scope, browser and seed checks verified |
-| 003 | Timetable and clash detection | 002 | Not started |
+| 003 | Timetable and clash detection | 002 | Complete; local constraints, transactions, concurrency and browser checks verified |
 | 004 | Leave requests and impact preview | 003 | Not started |
 | 005 | Explainable resolution engine | 004 | Not started |
 | 006 | Substitute response and Saturday approval | 005 | Not started |
@@ -37,7 +37,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 - PostgreSQL, Prisma and Tailwind are installed/verified; feature 001 adds stable NextAuth.js v4 and Argon2. tech.md owns installed versions and commands.
 - Demo policy and state transitions are documented in domain-rules.md. Keep configurable policy distinct from actual university requirements.
 - No real personal or historical university data supplied. All demo metrics must be labelled synthetic.
-- Documentation creation is complete; foundation application code now exists. Authentication and master data are implemented; timetable and leave/recovery workflows remain pending.
+- Documentation creation is complete; foundation application code now exists. Authentication, master data and manual timetable publication are implemented; leave/recovery workflows remain pending.
 - UI design revision: adapt the supplied Notion marketing reference into SlotWise's warm neutral workspace, readable data layouts and blue action palette. ui-ux.md owns the implementation design; reference-specific instructions and exact marketing measurements are not requirements.
 - Animmaster Lib, Skiper UI and Vengeance UI are optional sources. No component package or paid code was installed; project-owned CSS/shadcn primitives remain the baseline. Check the exact component before adoption.
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 002 as requested. Feature 003 (timetable and clash detection) is the next product feature only on a separate request; master-data dependencies now exist. Published-schedule guards must be added to affected master-data writes when publication exists. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 003 as requested. Feature 004 (leave requests and impact preview) is the next product feature only on a separate request. Dated occurrences, stable obligations and reservation transactions now exist; leave absence and approval checks must be added with that feature. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -294,3 +294,74 @@ Browser verification includes keyboard-only room creation, a held Server Action 
 - Fetched origin before preparing the commit; local and remote main matched. The commit includes feature 002 code, migration, synthetic fixture generator, regression tests and context updates. No force push, deployment or later feature is part of this handoff.
 - Local `.env`, generated Prisma output, Next build output, dependencies and test screenshots/traces remain excluded. Next's already tracked declaration file reflects the successful production build. Staged whitespace and configured-secret checks passed before commit.
 - Application code is unchanged since the verification follow-up: 18 unit, 21 integration and 32 browser tests passed, together with typecheck, lint, build and database/client-bundle checks. Only this version-control handoff note was added; those application checks were not rerun solely for the documentation change. The push result is verified against the remote branch and reported in chat.
+
+
+## Feature 003 handoff — 2026-11-14
+
+**Status:** complete; all six numbered acceptance criteria verified locally. Manual scheduling only; no auto-generation, solver, AI, external messaging, leave workflow or delivery-credit feature was added. No dependency install, commit, push or deployment was performed.
+
+### Changes and key paths
+
+- `prisma/schema.prisma`, `prisma/migrations/20261113010000_timetable/migration.sql`: timetable versions/entries, stable weekly obligations, dated occurrences, active faculty/section/room reservations, scheduling receipts, append-only application audit records and minimal recipient notifications. Composite department foreign keys and restrictive relationships retain history. PostgreSQL `btree_gist` exclusion uses half-open timestamptz ranges; a partial unique index prohibits two active occurrences for one obligation. The migration is applied to both local databases without resetting data.
+- `src/domain/scheduling/timetable.ts`: pure interval, consecutive-slot/lab, capacity, qualification, availability, daily/weekly cap, allocation completeness, holiday materialization and deterministic alternative-placement functions. Availability can cover adjoining intervals. At most three valid alternatives preserve the candidate's allocation/duration and move no peers.
+- `src/server/services/timetable.ts` and `scheduling-store.ts`: authorized department reads and student section scoping; durable draft versions; explicit preview fingerprints; actor-bound, payload-bound idempotent receipts; commit-time validation, department locking, retained-week/cross-semester conflict checks, dated reservation replacement, revision increment, audit and notifications in one transaction. A retry of a successful request returns its original result before stale rejection.
+- Weekly series IDs and local Monday week keys preserve obligation identity across weekday moves. Future pending occurrences are cancelled/replaced with links; historical/delivered records remain unchanged, including the effective-date boundary week. Future `resolved` records block generic template replacement. Existing materialized units retain their allocation and duration.
+- `src/server/services/master-data.ts` and its action now guard published classes and advance schedule revisions after harmless changes. Invalid room, faculty, availability, qualification, slot, calendar, allocation or other resource edits roll back. User-row locks in master-data/accounts/scheduling use `FOR NO KEY UPDATE`, preserving revocation serialization without blocking notification foreign-key references while another manager waits for the department lock.
+- `src/app/(app)/timetable/page.tsx`, `src/features/timetable/{schema,actions,components}.tsx/ts`, shell/dashboard and `globals.css`: scoped Server Component reads and URL filters; controlled create/place/move forms; native drag/drop; rejected-move explanations and alternatives; retained failed input; pending/double-submit protection; deliberate stale refresh; before/after preview and confirmed publication. Desktop tables scroll within a labelled region; mobile agendas, long labels, focus states and reduced motion remain usable. Notification/audit viewers remain features 010/011.
+- Added `tests/unit/timetable.test.ts`, `tests/integration/timetable.test.ts`, `tests/e2e/timetable.spec.ts` and reusable synthetic `tests/support/timetable-fixture.ts`. Fixtures use isolated 2099 semesters and unique departments. Existing seed data was not reset or populated with a generated schedule.
+
+### Acceptance evidence
+
+| Criterion | Actual result |
+| --- | --- |
+| 1. Teacher/section/room conflict explanations and publication rejection | Pure and real-service checks identify each resource and interval. Browser rejects an overlapping placement, retains input and repairs it using an offered alternative. A stored invalid draft still fails publication; no occurrence is committed. |
+| 2. Adjacent intervals do not conflict | Unit boundaries, publication of adjacent classes and real PostgreSQL reservations pass. A direct overlapping reservation insert fails the exclusion constraint and rolls back. |
+| 3. Lab suitability and consecutive slots | Unit and PostgreSQL service checks reject a theory room, a one-slot lab and a span crossing a break. A two-slot laboratory class publishes and reserves its full 120 minutes. |
+| 4. Publication retry and holidays | Concurrent same-request retries return the same result with six obligations/occurrences and eighteen reservations, one audit event and one notification per eligible recipient. Holiday dates are omitted. Different actor/payload reuse is rejected. |
+| 5. Competing publications | Two managers publishing the same semester yield one commit and one stale result. Overlapping semesters yield one commit and one dated-resource conflict. A simultaneous room-capacity downgrade either wins and stales publication, or rolls back after publication. Injected late notification failure rolls back occurrences, obligations, reservations, audit and revision together. |
+| 6. History and obligation identity | A subsequent weekday revision preserves the delivered occurrence byte-for-byte and the existing obligation records; replacements link to cancelled originals. A midweek effective date cannot duplicate an earlier weekly unit. Future resolved records block publication. |
+
+Direct authorization checks cover anonymous, faculty, student, HoD, revoked managers, foreign semesters/rooms/drafts, and actor revocation while publication waits. Student snapshots expose no draft/master data and only their member section's occurrences. A different-section student sees no classes. Existing authentication and master-data regressions also pass.
+
+### Commands and results
+
+Node **24.22.3**, npm **11.17.0**, PostgreSQL **17.11**, installed Chrome; commands select `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`. Integration/browser tests use only `slotwise_auth_test`, remove their own uniquely scoped records and never reset a database.
+
+| Command | Result |
+| --- | --- |
+| `npm run db:migrate` | Passed; feature 003 migration applied to persistent local demo DB. |
+| `npm run db:test:migrate` | Passed; migration applied to isolated test DB. |
+| `npm run db:validate` / `npm run db:check` | Passed; schema valid and Prisma SELECT 1 succeeds. |
+| `npm run typecheck` | Passed; generated Prisma/Next types and strict TypeScript. |
+| `npm run lint` | Passed, zero warnings. Existing ESLint 9 support limitation remains. |
+| `npm test` | **24/24 passed**, five files. |
+| `npm run test:integration` | **34/34 passed**, including thirteen new scheduling cases. |
+| `npm run build` | Passed; dynamic `/timetable` included in production build. |
+| `npm run check:client-bundle` | Passed; **31** bundles, no Prisma markers, database URLs or configured secrets. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | **39/39 passed**, including seven timetable cases, with the production server and isolated database. |
+| `git diff --check` | Passed. |
+
+The seven timetable browser cases were also rerun successfully after expanding the visual fixtures to a full four-class teaching day and adding published-mobile-agenda accessibility coverage. Typecheck and lint passed again after those test-only additions.
+
+Browser coverage includes keyboard-only move, pending controls with one request, stale input and refresh, rendered-form role revocation, drag persistence, conflicting drop rejection, alternatives, invalid publication, preview, publication and scoped student reads. Layout checks cover **320/390/768/1440px**, 200% CSS layout scaling, long course names, full-day fixtures, mobile agendas and reduced motion. Axe WCAG A/AA checks have no findings in tested draft/preview/published-agenda states. Representative desktop/mobile screenshots under ignored `test-results/` were opened and inspected. Automated scans/CSS scaling do not establish full screen-reader or browser-toolbar zoom testing.
+
+Initial failures exposed a real actor-lock/notification FK deadlock, selection focus interrupting drag, a non-focusable scrolling preview, nested-select label matching and narrow-screen intrinsic sizing. Those were corrected and rerun. Test-only corrections included a Prisma nested fixture write, a shadowed helper variable, waiting for enabled drag controls and avoiding nested-button drop coordinates. One diagnostic overflow assertion mistakenly included intentionally clipped timetable contents; the final assertion checks page-wide overflow while permitting the labelled grid's internal scrolling.
+
+### Limits, demo and next step
+
+- Demo policy is explicitly Asia/Kolkata, in-person Monday–Friday, at least two consecutive slots for labs, and complete weekly counts for every unarchived semester allocation. Unsupported timezones fail explicitly. The editor is synchronous and intended for demo-sized departments (up to 300 entries per submitted draft); no solver or broad institutional-scale performance claim is made.
+- The existing semester ends 18 December 2026. Choose a future effective date within it; later use requires configuring a new semester/allocations. The seed preserves existing configuration. No draft or published schedule is inserted into the persistent demo database automatically.
+- Preview is provisional and reserves nothing. Saving after master-data changes revalidates a draft; publication recomputes the dated plan and requires its reviewed fingerprint. Revision changes require refresh/review. Full leave absence/cover approval checks, delivery confirmation, ledger, notification UI and audit viewer belong to later features and remain unimplemented.
+- Minimal notifications are committed in-app records only, not push/email. Audit append-only behaviour is enforced by the available application services, not cryptographic immutability. Some installed Prisma/pg reads emit a driver concurrency deprecation warning; checks pass on pg 8, with a future driver-upgrade compatibility follow-up. Inherited auth limiter/session and ESLint limitations remain.
+- Demo: sign in as `coordinator@demo.slotwise.test`, open **Timetable**, create a future-effective draft, place allocations until incomplete counts clear, attempt a resource conflict, select an alternative, preview each dated change and publish. Open the student timetable to see the scoped result. Use **Move class** or desktop drag, then clone another draft to demonstrate a prospective revision.
+- **React/Next.js concepts:** App Router Server Components and URL filters; Client Component controlled state, refs and `useTransition`; accessible form and native drag events sharing one mutation path; validated Server Actions and `revalidatePath`; server authorization, optimistic draft versions, schedule revisions, preview fingerprints, transactions and idempotent receipts.
+
+Shared context updated: README, architecture (implemented boundaries/protocol), domain rules (explicit demo lab/count/identity policy), tech (actual implementation/dependencies), UI status and this progress file. **Next product feature: 004**, only when requested. Stop here.
+
+
+## Feature 003 GitHub handoff — 2026-11-14
+
+- User requested committing and pushing the completed manual timetable feature to the configured repository, `https://github.com/rajveer3x/slotwise.git`, on the existing `main` branch.
+- Fetched origin before preparing the commit; local and remote main matched. The handoff includes feature 003 source, its reservation migration, scheduling tests and updated project context. The runtime-generated `next-env.d.ts` development-path changes were normalized to the already tracked production paths.
+- Application source is unchanged since the recorded verification: 24 unit, 34 PostgreSQL integration and 39 browser tests passed; all seven timetable browser cases passed again with expanded full-day and published-mobile-agenda coverage. Typecheck, lint, build, schema/connectivity and client-bundle checks passed. Those application checks were not rerun solely for this Git handoff.
+- Local environment files, credentials, dependencies, generated Prisma output, Next output, browser screenshots/traces and database contents remain excluded. Staged whitespace and configured-secret checks run before commit. This record accompanies the requested GitHub handoff; final push verification is reported in chat.

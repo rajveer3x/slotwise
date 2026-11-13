@@ -21,8 +21,10 @@ export async function changeAccountActive(actorId: string | null, input: unknown
   return getDb().$transaction(async (tx) => {
     // Lock actor and target in stable order: revocations/role changes serialize
     // against this write, and competing status submissions detect stale input.
+    // NO KEY UPDATE permits notification FKs to reference users while another
+    // manager waits for the department lock, avoiding a publication deadlock.
     const ids = [...new Set([actorId, change.userId])].sort();
-    for (const id of ids) await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
+    for (const id of ids) await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR NO KEY UPDATE`;
     const actor = await tx.user.findUnique({ where: { id: actorId }, select: actorSelect });
     if (!actor?.active) throw new AccessError("UNAUTHORIZED");
     requireScope(actor, ["ADMIN"], actor.departmentId);

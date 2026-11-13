@@ -7,6 +7,7 @@ import { AccessError, actorSelect, requireSession, sessionIdentity } from "@/ser
 import { requireScope } from "@/server/auth/permissions";
 import { config, kinds, type Kind, type MasterRow, type MasterSnapshot } from "@/features/master-data/config";
 import { dataSchemas, mutationSchema, type MasterResult } from "@/features/master-data/schema";
+import { guardPublishedSchedule, ScheduleError } from "./scheduling-store";
 
 type Tx = Prisma.TransactionClient;
 // Every delegate here has the same scoped record envelope. Specific data is
@@ -104,7 +105,7 @@ export async function changeMasterData(actorId: string | null, input: unknown): 
     return await getDb().$transaction(async tx => {
       // Account changes use the same actor lock; department lock serializes all
       // master-data relationships, uniqueness decisions, receipts and revisions.
-      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actorId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actorId} FOR NO KEY UPDATE`;
       const actor = await actorFor(tx, actorId);
       await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${actor.departmentId} FOR UPDATE`;
       const receipt = await tx.masterMutationReceipt.findUnique({ where: { id: mutation.requestId } });
@@ -121,6 +122,8 @@ export async function changeMasterData(actorId: string | null, input: unknown): 
       const row = existing
         ? await repository.update({ where: { id: existing.id }, data: { ...(mutation.operation === "save" ? data : { archived: mutation.operation === "archive" }), ...(mutation.operation === "archive" && mutation.kind === "semester" ? { active: false } : {}), version: { increment: 1 } } })
         : await repository.create({ data: { ...data, departmentId: actor.departmentId } });
+      await guardPublishedSchedule(tx, actor.departmentId);
+      await tx.semester.updateMany({ where: { departmentId: actor.departmentId }, data: { scheduleRevision: { increment: 1 } } });
       await tx.masterMutationReceipt.create({ data: { id: mutation.requestId, actorId, departmentId: actor.departmentId, fingerprint, recordId: row.id } });
       return { ok: true, message: mutation.operation === "archive" ? "Archived. References and history are preserved; this record cannot be selected for new work." : mutation.operation === "restore" ? "Record restored." : "Saved successfully.", recordId: row.id };
     });
@@ -128,6 +131,7 @@ export async function changeMasterData(actorId: string | null, input: unknown): 
     if (error instanceof AccessError) return { ok: false, code: error.code, message: error.code === "UNAUTHORIZED" ? "Your session is no longer active. Sign in again." : "You do not have permission to access this department's record." };
     if (error instanceof z.ZodError) return { ok: false, code: "VALIDATION_ERROR", message: "Check the highlighted fields.", fieldErrors: z.flattenError(error).fieldErrors as Record<string, string[]> };
     if (error instanceof DataError) return { ok: false, code: error.code, message: error.message, ...(error.field ? { fieldErrors: { [error.field]: [error.message] } } : {}) };
+    if (error instanceof ScheduleError) return { ok: false, code: error.code, message: error.message };
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { ok: false, code: "CONFLICT", message: "A record with this code, account or relationship already exists, including archived records. Edit or restore it instead.", fieldErrors: { [error.meta?.target && Array.isArray(error.meta.target) ? String(error.meta.target.filter(k => k !== "departmentId")[0] ?? "code") : "code"]: ["Already in use in this department."] } };
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return { ok: false, code: "VALIDATION_ERROR", message: "A related record is unavailable. Refresh and choose a record in your department." };
     console.error("Master data mutation failed", error instanceof Error ? error.name : "Unknown error");
