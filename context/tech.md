@@ -177,3 +177,7 @@ Consult the documentation matching installed versions when implementing APIs; th
 - The in-request TypeScript search uses a 400 ms cooperative deadline, 30,000 work steps and at most 1,500 local improvement checks. Input is bounded to 120 allocations, 300 required periods, 150 active slots, 30 active rooms and 600 rows per supporting resource set. The timer measures engine work including yields. Snapshot loading and draft import are separate database operations.
 - Same seed and snapshot produce the same ordered choices. Wall-clock timeout or cancellation can interrupt at different work steps. Deterministic work-limit stops produce the same partial proposal for the same input and seed. Coverage may be complete even when quality improvement is interrupted. No outcome establishes global optimality or infeasibility.
 - Bounded inputs fit the current request model. No worker, queue, dependency or migration was required. Review proposals are transient; importing one records its seed, policy, base revision, input digest, stop reason, elapsed time and quality components in the existing timetable audit.
+
+## CSV parser (013)
+
+`csv-parse` 7.0.3 parses uploads on the server. A strict UTF-8 decoder accepts a UTF-8 BOM and rejects invalid byte sequences and NUL. Uploads are limited to 128 KiB and 300 data records. The templates use ordered headers and synthetic examples. Formula neutralization is applied before export quoting. [CSV Parse documentation](https://csv.js.org/parse/)

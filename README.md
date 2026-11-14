@@ -75,6 +75,16 @@ Sign in as a departmental coordinator or administrator and open **Timetable** on
 
 Generation treats the latest published weekly placements as fixed. If a proposal becomes stale, refresh the semester and generate again. The PostgreSQL and browser fixtures exercise both complete and partial results without changing the local demo data.
 
+## CSV import and export demo (013)
+
+1. Sign in as a department coordinator or administrator. Open **CSV import and export** from Master data or Timetable.
+2. Choose Courses and download the template. Change the example to an unused course code. Set `requiredContactMinutes` to zero, upload the file, then select **Preview CSV**. The error identifies row 2 and its column, and the commit button is disabled.
+3. Use positive contact minutes and keep the comma in the example course name inside quotes. Upload the corrected file, preview the parsed fields, then select **Commit import**. Find the course under Master data → Courses.
+4. To import a weekly timetable, use the draft template with actual section, allocated course and room codes from your department. Select the semester and an effective date, preview the file, commit and open the draft. The regular Timetable editor handles dated review and publication.
+5. To download the active published classes for a semester, choose it under **Export published timetable**. The download contains dated class rows in institution-local time.
+
+Each downloadable template contains ordered headers and one synthetic example row. Replace it with your own rows. Use UTF-8 CSV with up to 128 KiB and 300 data rows. Row numbers count CSV records from the header, so a quoted newline stays inside a single row. Imports create new records. Faculty profiles use the email of an existing eligible account. If a preview goes stale, preview the same file again to review it against current records.
+
 ## Leave demo
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.

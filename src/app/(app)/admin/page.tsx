@@ -30,7 +30,10 @@ export default async function MasterDataPage({ searchParams }: { searchParams: P
     <h1 className="text-2xl font-semibold md:text-[28px]">Master data</h1>
     <p className="mt-3 text-text-secondary">Configure teaching records for {user.department.name}. Dates and times: {user.department.timezone}.</p>
     <p className="mt-2 text-sm text-text-secondary">Demo policies, identities, capacities and workload limits are synthetic examples. Weekly periods and semester contact minutes are separate requirements. Saturday slots require a later scheduling exception.</p>
-    {user.role === "ADMIN" && <Link href="/admin/accounts" className="inline-link mt-4 inline-block">Manage account access</Link>}
+    <div className="mt-4 flex flex-wrap gap-4">
+      {user.role === "ADMIN" && <Link href="/admin/accounts" className="inline-link">Manage account access</Link>}
+      <Link href="/csv" className="inline-link">CSV import and export</Link>
+    </div>
     <nav aria-label="Master data categories" className="my-6 flex flex-wrap gap-2">{kinds.map(k => <Link key={k} href={`/admin?tab=${k}`} aria-current={kind === k ? "page" : undefined} className={`button button-secondary ${kind === k ? "bg-primary-tint text-info" : ""}`}>{config[k].label}</Link>)}</nav>
     <h2 className="text-lg font-semibold">{definition.label}</h2>
     <form action="/admin" className="my-4 grid max-w-[640px] gap-3 sm:grid-cols-[1fr_auto]">

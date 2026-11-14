@@ -22,8 +22,12 @@ export async function schedulingData(tx: Tx, departmentId: string, generation?: 
 }
 export const occurrenceInclude = { entry: { include: { timetableVersion: true } }, teachingObligation: true } as const;
 export type StoredOccurrence = Prisma.ClassOccurrenceGetPayload<{ include: typeof occurrenceInclude }>;
+export function occurrenceMinutes(o: Pick<StoredOccurrence, "localDate" | "startAt" | "endAt">) {
+  const midnight = instant(o.localDate, 0).getTime();
+  return { startMinute: Math.round((o.startAt.getTime() - midnight) / 60000), endMinute: Math.round((o.endAt.getTime() - midnight) / 60000) };
+}
 export function asPlacement(o: StoredOccurrence): Placement {
-  return { seriesId: o.entry.seriesId, allocationId: o.teachingObligation.allocationId, roomId: o.roomId ?? "", weekday: weekday(o.localDate), startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
+  return { seriesId: o.entry.seriesId, allocationId: o.teachingObligation.allocationId, roomId: o.roomId ?? "", weekday: weekday(o.localDate), ...occurrenceMinutes(o) };
 }
 // Called inside the existing actor + department-locked master-data transaction.
 // Invalidating writes roll back; harmless changes still invalidate open previews.

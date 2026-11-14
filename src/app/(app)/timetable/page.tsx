@@ -27,6 +27,7 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
   const weekHref = (offset: number) => `/timetable?${new URLSearchParams({ semester: semester.id, view, resource, week: addDays(week, offset) })}`;
   return <main id="main-content" tabIndex={-1} className="app-content">
     <p className="mb-2 text-sm text-text-secondary">{actor.department.name} · Asia/Kolkata · Synthetic demo</p><h1 className="text-2xl font-semibold md:text-[28px]">Timetable</h1><p className="mt-3">{semester.name} · {draft ? "Draft — not reserved" : "Published schedule"} · Revision {semester.scheduleRevision}</p>
+    {snapshot.canEdit && <Link className="inline-link mt-4 inline-block" href={`/csv?${new URLSearchParams({ semester: semester.id })}`}>CSV import and export</Link>}
     <form className="schedule-panel my-6 schedule-form" method="get" aria-label="Timetable filters">
       <label>Semester<select aria-label="Semester" name="semester" className="input" defaultValue={semester.id}>{snapshot.semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       {snapshot.canEdit && <label>Schedule<select aria-label="Schedule" name="draft" className="input" defaultValue={draft?.id ?? ""}><option value="">Published schedule</option>{snapshot.drafts.map((d, i) => <option key={d.id} value={d.id}>Draft {i + 1} · from {d.effectiveFrom} · v{d.version}</option>)}</select></label>}

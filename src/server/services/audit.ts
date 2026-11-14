@@ -20,6 +20,7 @@ const assignment = z.object({ ...schedule, occurrenceId: id, obligationId: id, d
   tier: z.number().int().min(1).max(5).optional(), schedulingStatus: status.optional() });
 const timetable = { ...version, ...revision, semesterId: id, effectiveFrom: date, status,
   entries: z.array(placement), occurrences: integer, occurrenceIds: z.array(id),
+  source: z.literal("CSV"),
   generation: z.object({
     status: z.enum(["finished", "timeout", "cancelled", "work-limit"]),
     seed: integer, placed: integer, required: integer, work: integer, runtimeMs: integer,
@@ -40,6 +41,7 @@ const publication = { ...revision, changes: z.array(assignment), unresolvedIds: 
 // Stored JSON is never rendered directly. Each action gets its own approved fields,
 // including at nested levels. Staff-entered audit reasons are approved only here.
 const actions = {
+  CSV_MASTER_IMPORTED: ["CSV master data imported", { kind: z.enum(["faculty", "course", "room"]), count: integer, recordIds: z.array(id) }],
   TIMETABLE_DRAFT_CREATED: ["Timetable draft created", timetable],
   TIMETABLE_DRAFT_SAVED: ["Timetable draft saved", timetable],
   TIMETABLE_PUBLISHED: ["Timetable published", timetable],
