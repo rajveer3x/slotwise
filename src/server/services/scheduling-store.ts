@@ -1,6 +1,7 @@
 import "server-only";
+import { assignmentErrors, resolutionPolicy, type Assignment, type ResolutionSnapshot } from "@/domain/resolution/engine";
 import { Prisma } from "@/generated/prisma/client";
-import { localDate, validatePlacements, weekday, weekOf, instant, type SchedulingData, type Placement } from "@/domain/scheduling/timetable";
+import { localDate, weekday, instant, type SchedulingData, type Placement } from "@/domain/scheduling/timetable";
 export class ScheduleError extends Error {
   constructor(public code: string, message: string, public conflicts: { rule: string; seriesId: string; message: string }[] = []) { super(message); }
 }
@@ -21,12 +22,7 @@ export async function schedulingData(tx: Tx, departmentId: string): Promise<Sche
 export const occurrenceInclude = { entry: { include: { timetableVersion: true } }, teachingObligation: true } as const;
 export type StoredOccurrence = Prisma.ClassOccurrenceGetPayload<{ include: typeof occurrenceInclude }>;
 export function asPlacement(o: StoredOccurrence): Placement {
-  return { seriesId: o.entry.seriesId, allocationId: o.teachingObligation.allocationId, roomId: o.roomId, weekday: weekday(o.localDate), startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
-}
-export function validateDated(rows: (Placement & { localDate: string })[], data: SchedulingData) {
-  const weeks = new Map<string, (Placement & { localDate: string })[]>();
-  for (const row of rows) { const key = weekOf(row.localDate); weeks.set(key, [...(weeks.get(key) ?? []), row]); }
-  return [...weeks].flatMap(([week, placements]) => validatePlacements(placements, data).map(c => ({ ...c, message: `Week of ${week}: ${c.message}` })));
+  return { seriesId: o.entry.seriesId, allocationId: o.teachingObligation.allocationId, roomId: o.roomId ?? "", weekday: weekday(o.localDate), startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
 }
 // Called inside the existing actor + department-locked master-data transaction.
 // Invalidating writes roll back; harmless changes still invalidate open previews.
@@ -37,18 +33,15 @@ export async function guardPublishedSchedule(tx: Tx, departmentId: string) {
   const future = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", endAt: { gt: now } }, include: occurrenceInclude });
   if (!future.length) return;
   await guardApprovedAbsence(tx, departmentId, future.filter(o => o.startAt > now && o.deliveryStatus === "PENDING"));
-  const data = await schedulingData(tx, departmentId);
-  const holidays = await tx.holiday.findMany({ where: { departmentId, archived: false } });
+  const s = await resolutionSnapshot(tx, departmentId, []);
   for (const o of future) {
-    const semester = await tx.semester.findUniqueOrThrow({ where: { id: o.entry.timetableVersion.semesterId } });
-    const a = data.allocations.find(a => a.id === o.teachingObligation.allocationId)!;
-    if (semester.archived || o.localDate < semester.startDate || o.localDate > semester.endDate || holidays.some(h => h.semesterId === semester.id && h.date === o.localDate) || a.facultyId !== o.facultyId || a.sectionId !== o.sectionId) throw new ScheduleError("CONFLICT", "This edit would invalidate a published class. Revise the timetable prospectively first.");
+    const a = s.data.allocations.find(a => a.id === o.teachingObligation.allocationId);
+    if (!a || a.sectionId !== o.sectionId || (o.resolutionTier !== 1 && a.facultyId !== o.facultyId)) throw new ScheduleError("CONFLICT", "This edit would invalidate a published assignment. Revise its schedule first.");
+    const assignment = asAssignment(o);
+    // Include past/ongoing assignments in workload; do not reject them merely for having started.
+    const errors = assignmentErrors([assignment], s.active.filter(a => a.occurrenceId !== o.id), { ...s, now: "1970-01-01T00:00:00.000Z" }, o.resolutionTier ?? 1);
+    if (errors.length) throw new ScheduleError("CONFLICT", `This edit would invalidate the published schedule: ${errors.join(", ")}.`);
   }
-  // Include the rest of each boundary week when validating workload limits.
-  const first = future.reduce((min, o) => o.localDate < min ? o.localDate : min, future[0].localDate);
-  const rows = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", localDate: { gte: weekOf(first) } }, include: occurrenceInclude });
-  const conflicts = validateDated(rows.map(o => ({ ...asPlacement(o), localDate: o.localDate })), data);
-  if (conflicts.length) throw new ScheduleError("CONFLICT", `This edit would invalidate the published schedule: ${conflicts[0].message}`, conflicts);
 }
 
 // Shared scheduling guard: pending leave is provisional; approved absence is hard.
@@ -56,4 +49,21 @@ export async function guardApprovedAbsence(tx: Tx, departmentId: string, rows: {
   if (!rows.length) return;
   const leaves = await tx.leaveRequest.findMany({ where: { departmentId, status: "APPROVED", facultyId: { in: [...new Set(rows.map(r => r.facultyId))] } }, select: { facultyId: true, startDate: true, endDate: true } });
   if (rows.some(r => leaves.some(l => l.facultyId === r.facultyId && l.startDate <= r.localDate && l.endDate >= r.localDate))) throw new ScheduleError("CONFLICT", "A teacher has approved leave on a proposed class date. Review leave recovery before publishing.");
+}
+
+export function asAssignment(o: StoredOccurrence): Assignment {
+  return { occurrenceId: o.id, obligationId: o.teachingObligationId, allocationId: o.teachingObligation.allocationId, facultyId: o.facultyId, sectionId: o.sectionId, roomId: o.roomId, date: o.localDate, startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
+}
+// All resources and boundary weeks are read within the caller's repeatable-read or locked transaction.
+export async function resolutionSnapshot(tx: Tx, departmentId: string, affectedIds: string[], hypotheticalLeave?: ResolutionSnapshot["leaves"][number]): Promise<ResolutionSnapshot> {
+  const data = await schedulingData(tx, departmentId);
+  const department = await tx.department.findUniqueOrThrow({ where: { id: departmentId }, select: { onlineTeachingEnabled: true } });
+  const semesters = await tx.semester.findMany({ where: { departmentId }, select: { id: true, startDate: true, endDate: true, archived: true, scheduleRevision: true }, orderBy: { id: "asc" } });
+  const holidays = await tx.holiday.findMany({ where: { departmentId, archived: false }, select: { semesterId: true, date: true } });
+  const leaves = await tx.leaveRequest.findMany({ where: { departmentId, status: "APPROVED" }, select: { facultyId: true, startDate: true, endDate: true } });
+  const faculty = await tx.faculty.findMany({ where: { departmentId }, select: { id: true, targetMinutesPerWeek: true } });
+  const sections = await tx.section.findMany({ where: { departmentId }, select: { id: true, preferredPeriodsPerDay: true } });
+  const rows = await tx.classOccurrence.findMany({ where: { departmentId, OR: [{ schedulingStatus: "ACTIVE" }, { id: { in: affectedIds } }] }, include: occurrenceInclude, orderBy: { id: "asc" } });
+  const now = new Date();
+  return { data, faculty: faculty.map(f => ({ ...f, confirmedCoversThisMonth: 0 })), sections, semesters, holidays, leaves: [...leaves, ...(hypotheticalLeave ? [hypotheticalLeave] : [])], active: rows.filter(o => o.schedulingStatus === "ACTIVE" && !affectedIds.includes(o.id)).map(asAssignment), affected: rows.filter(o => affectedIds.includes(o.id)).map(asAssignment), swappableIds: rows.filter(o => o.schedulingStatus === "ACTIVE" && o.deliveryStatus === "PENDING" && !o.resolved && o.startAt > now && !affectedIds.includes(o.id)).map(o => o.id), now: now.toISOString(), onlineEnabled: department.onlineTeachingEnabled, policy: resolutionPolicy };
 }

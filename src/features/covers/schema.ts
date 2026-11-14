@@ -12,6 +12,6 @@ export const coverCommand = z.discriminatedUnion("operation", [
 export type CoverCommand = z.infer<typeof coverCommand>;
 export type CoverResult = { ok: boolean; code?: string; message: string; id?: string };
 export type ConsentHistory = { id: string; itemId: string; occurrenceId: string; kind: "cover" | "saturday"; candidateId: string; status: string; createdAt: string; expiresAt?: string; respondedAt?: string; reason?: string; decisionReason?: string; closedReason?: string };
-export type ConsentCard = ConsentHistory & { candidate: Candidate; labels: Record<string, string>; requestedBy: string; invitedName?: string; canRespond: boolean; canCancel: boolean; canReview: boolean; earlierTiers?: Rejection[]; stale: boolean };
+export type ConsentCard = ConsentHistory & { candidate: Candidate; labels: Record<string, string>; requestedBy: string; invitedName?: string; published?: boolean; canRespond: boolean; canCancel: boolean; canReview: boolean; earlierTiers?: Rejection[]; stale: boolean };
 export type CoverWorkspace = { covers: ConsentCard[]; exceptions: ConsentCard[]; notifications: { id: string; message: string; createdAt: string }[]; computedAt: string };
 export type ExactSelection = { itemId: string; occurrenceId: string; candidate: Candidate; assignment: Assignment };

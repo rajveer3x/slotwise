@@ -7,6 +7,7 @@ import { rejectionLabels, tierNames, type Assignment, type Candidate, type Decis
 import type { ResolutionWorkspace } from "@/server/services/resolutions";
 import type { Board, ResolutionResult } from "./schema";
 import { RequestSelectedConsent, statusLabel } from "@/features/covers/components";
+import { PublicationReview } from "@/features/publications/components";
 import { resolutionAction } from "./actions";
 
 export function ResolutionWorkspaceView({ workspace: w }: { workspace: ResolutionWorkspace }) {
@@ -81,6 +82,7 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
         {!!decisions.rejected[item.original.occurrenceId]?.length && <div className="mt-4"><p>{decisions.rejected[item.original.occurrenceId].length} explicit rejections retained.</p><ul className="my-2 text-sm">{decisions.rejected[item.original.occurrenceId].map(r => <li key={r.candidateId}>{r.reason}</li>)}</ul><Button variant="secondary" disabled={pending} onClick={() => { const next = { ...decisions, rejected: { ...decisions.rejected, [item.original.occurrenceId]: [] } }; setDecisions(next); setNeedsCompute(true); requestId.current = null; run("compute", next); }}>Restore rejected candidates</Button></div>}
       </section>}
     </div>}
+    <PublicationReview board={board} leaveId={leaveId} disabled={pending || needsCompute || stale} />
   </section>;
 }
 function CandidateCard({ candidate: c, rank, selected, pending, board, choose, reject, consent }: { consent?: React.ReactNode; candidate: Candidate; rank: number; selected: boolean; pending: boolean; board: Board; choose: () => void; reject: (reason: string) => void }) {

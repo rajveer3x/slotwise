@@ -1,6 +1,6 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–006** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses and exact Saturday approvals.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–007** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses, exact Saturday approvals and transactional recovery publication.
 
 ## Run locally
 
@@ -112,7 +112,7 @@ After publishing a future timetable, request leave as faculty and approve it as 
 
 The engine searches Substitute → Swap → Weekday → Online → Saturday. Makeups use the 14 days following the original date, bounded by semester end/current time; Saturday requires configured slots/availability and an exact HoD exception. Online is disabled by default and never allowed for labs. A search limit reports incomplete results; no feasible option leaves the class unresolved. Demo weights/limits live in `src/domain/resolution/engine.ts`; they are not university policy.
 
-Drafts reserve nothing and never publish. Cover invitations/responses and Saturday approval are implemented in feature 006; recovery preview/publication remains feature 007. Confirmed-cover counts are currently zero because no delivery records exist yet. The persistent seed publishes no schedule or resolution; tests use project-authored 2099 fixtures in the isolated database. The current demo semester ends 2026-12-18.
+Drafts reserve nothing and never publish. Cover invitations/responses and Saturday approval are implemented in feature 006; recovery preview/publication is implemented below in feature 007. Confirmed-cover counts are currently zero because no delivery records exist yet. The persistent seed publishes no schedule or resolution; tests use project-authored 2099 fixtures in the isolated database. The current demo semester ends 2026-12-18.
 
 ## Cover and Saturday demo (006)
 
@@ -122,7 +122,15 @@ After decline or expiry, recompute as coordinator and choose the next faculty or
 
 For Saturday, configure Saturday slots and original-faculty availability in Master data. Earlier feasible candidates must first be exhausted or explicitly rejected with reasons. Select/save the resulting Saturday candidate, enter a request reason and choose **Request HoD exception**. A different active departmental HoD reviews the exact candidate and attached earlier-tier explanations, then approves or rejects with a decision reason. A HoD cannot approve their own leave exception or their own request. Missing eligible approvers are reported explicitly. Candidate edits require new approval.
 
-Invitation/response/expiry/cancellation and exception actions record transactional audit events and persisted in-app updates for involved staff. `/cover-requests` shows only your scoped records and your latest 30 recovery updates. Reads derive expiry immediately; a subsequent authorized write materializes expiry history. There is no external delivery, live push or general notification/acknowledgement center yet. Recovery publication remains feature 007, and delivered minutes remain feature 008. All demonstration records are synthetic; automated tests create isolated 2099 scenarios without publishing persistent seed schedules.
+Invitation/response/expiry/cancellation and exception actions record transactional audit events and persisted in-app updates for involved staff. `/cover-requests` shows only your scoped records and your latest 30 recovery updates. Reads derive expiry immediately; a subsequent authorized write materializes expiry history. There is no external delivery, live push or general notification/acknowledgement center yet. Recovery publication is implemented in feature 007 below; delivered minutes remain feature 008. All demonstration records are synthetic; automated tests create isolated 2099 scenarios without publishing persistent seed schedules.
+
+## Recovery preview and publication demo (007)
+
+After saving exact candidates and obtaining any required cover acceptance or Saturday approval, stay on **Resolutions** and open **Preview and publish**. Check the saved classes to include. For online makeups enter a valid HTTPS meeting URL without embedded credentials. Choose **Preview selected changes**, inspect the labelled Before/After teacher, date/time and room, affected recipients and unresolved classes. Missing consent or links block publication. The final **Publish N changes** button appears after the comparison.
+
+Publication revalidates the selected subset under the department lock. Every selected assignment, resource reservation, publication record, plan/item state, schedule revision, audit event, recipient notification and retry receipt commits together. One invalid selected class rolls back the batch. Swaps replace both sides atomically. All replacements keep their existing teaching obligations and pending delivery; original cancellations remain in history. Students see the new assignment after refreshing Timetable, including online links and an approved Saturday column/agenda day. Accepted/approved consent cards become Published and cannot be cancelled as an invitation.
+
+To demonstrate stale recovery, leave a preview open in one browser, make a harmless room-name edit or publish another recovery in a separate coordinator/admin session, then try the old preview. It is rejected without a partial publication. **Recompute current resources**, review retained choices, **Save draft** and preview again. After subset publication, remaining classes are explicitly unresolved and their old items/previews are superseded. Full notification acknowledgement, audit viewers and delivery credit remain later features. All local tests use isolated synthetic 2099 fixtures; no persistent seed schedule is published automatically.
 
 ## React and Next.js concepts to explain
 
@@ -134,6 +142,7 @@ Invitation/response/expiry/cancellation and exception actions record transaction
 - **Leave state:** request status/version and schedule revision serve different purposes. A preview is a read-only snapshot; a HoD decision authorizes a transaction that re-queries dated occurrences. Controlled form state survives errors/refresh; the server independently checks identity, ownership and status.
 - **Resolution state:** pure deterministic rules consume an immutable resource snapshot; controlled Client Components hold draft choices and use Server Actions to recompute the batch. Database drafts have separate edit versions and capture policy/revisions. Selection, acceptance, publication and delivery are distinct states.
 - **Response state:** Server Components resolve scoped invitations and server deadlines; controlled Client Components retain reasons and retry keys with `useTransition`/refs. Server Actions independently authorize, revalidate exact candidates under the department lock and refresh routes after commit. Candidate fingerprints, partial unique indexes and retry receipts prevent different forms of duplicate consent.
+- **Publication state:** a controlled subset and meeting-link form uses `useState`, `useRef` and `useTransition`. A read-only Server Action produces the comparison; a separate authorized action rebuilds it inside a database transaction and revalidates affected routes after commit. Preview fingerprints, edit versions, department revisions, resource exclusion and payload-bound receipts protect different boundaries.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 
@@ -151,5 +160,5 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 006; later features require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 007; later features require a separate request.
 # slotwise

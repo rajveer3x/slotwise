@@ -1,4 +1,5 @@
 import "server-only";
+import { assignmentErrors } from "@/domain/resolution/engine";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
@@ -7,7 +8,7 @@ import { actorSelect, AccessError, sessionIdentity } from "@/server/auth/session
 import { requireScope } from "@/server/auth/permissions";
 import { alternatives, completeness, materialize, localDate, validatePlacements, weekOf, clockTime, type Placement } from "@/domain/scheduling/timetable";
 import { scheduleInput, type ScheduleResult, type Preview } from "@/features/timetable/schema";
-import { guardApprovedAbsence, schedulingData, ScheduleError, occurrenceInclude, asPlacement, validateDated, type Tx } from "./scheduling-store";
+import { guardApprovedAbsence, schedulingData, ScheduleError, occurrenceInclude, asPlacement, asAssignment, resolutionSnapshot, type Tx } from "./scheduling-store";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 async function actorFor(tx: Tx, id: string | null, write = false) {
@@ -32,7 +33,7 @@ export async function readTimetable(actorId: string | null, semesterId?: string)
       canEdit, role: actor.role, timezone: actor.department.timezone, today: localDate(),
       semesters: semesters.map(s => ({ id: s.id, name: s.name })), semester: semester ? { id: semester.id, name: semester.name, startDate: semester.startDate, endDate: semester.endDate, scheduleRevision: semester.scheduleRevision } : null,
       data, drafts: drafts.map(d => ({ id: d.id, version: d.version, baseScheduleRevision: d.baseScheduleRevision, effectiveFrom: d.effectiveFrom, entries: d.entries.map(({ seriesId, allocationId, roomId, weekday, startMinute, endMinute }) => ({ seriesId, allocationId, roomId, weekday, startMinute, endMinute })) })),
-      occurrences: occurrences.map(o => ({ id: o.id, localDate: o.localDate, startMinute: asPlacement(o).startMinute, endMinute: asPlacement(o).endMinute, course: `${o.teachingObligation.allocation.course.code} · ${o.teachingObligation.allocation.course.name}`, facultyId: o.facultyId, faculty: o.faculty.user.name, sectionId: o.sectionId, section: o.section.code, roomId: o.roomId, room: o.room.code, schedulingStatus: o.schedulingStatus, deliveryStatus: o.deliveryStatus })),
+      occurrences: occurrences.map(o => ({ id: o.id, localDate: o.localDate, startMinute: asPlacement(o).startMinute, endMinute: asPlacement(o).endMinute, course: `${o.teachingObligation.allocation.course.code} · ${o.teachingObligation.allocation.course.name}`, facultyId: o.facultyId, faculty: o.faculty.user.name, sectionId: o.sectionId, section: o.section.code, roomId: o.roomId, room: o.room?.code ?? "Online", meetingUrl: o.meetingUrl, replacesId: o.replacesId, originalDate: o.teachingObligation.originalDate, resolutionTier: o.resolutionTier, schedulingStatus: o.schedulingStatus, deliveryStatus: o.deliveryStatus })),
     };
   }, { isolationLevel: "RepeatableRead" });
 }
@@ -70,9 +71,11 @@ async function publication(tx: Tx, draftId: string, departmentId: string) {
     if (obligation && (obligation.allocationId !== p.allocationId || obligation.requiredMinutes !== p.endMinute - p.startMinute)) throw new ScheduleError("CONFLICT", "Existing teaching units keep their allocation and duration. Move them without changing their duration.");
   }
   const retained = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", localDate: { gte: weekOf(draft.effectiveFrom) }, id: { notIn: [...cancelIds] } }, include: occurrenceInclude });
-  const datedConflicts = validateDated([...retained.map(o => ({ ...asPlacement(o), localDate: o.localDate })), ...next], data);
-  if (datedConflicts.length) throw new ScheduleError("CONFLICT", "The dated schedule conflicts with retained classes or another semester.", datedConflicts);
   await guardApprovedAbsence(tx, departmentId, next.map(p => ({ facultyId: data.allocations.find(a => a.id === p.allocationId)!.facultyId, localDate: p.localDate })));
+  const snapshot = await resolutionSnapshot(tx, departmentId, []);
+  const assignments = next.map(p => { const a = data.allocations.find(a => a.id === p.allocationId)!; return { occurrenceId: p.seriesId + p.localDate, obligationId: obligationMap.get(key(p.seriesId, p.localDate))?.id ?? p.seriesId + p.localDate, allocationId: a.id, facultyId: a.facultyId, sectionId: a.sectionId, roomId: p.roomId, date: p.localDate, startMinute: p.startMinute, endMinute: p.endMinute }; });
+  const datedConflicts = assignmentErrors(assignments, retained.map(asAssignment), snapshot, 1);
+  if (datedConflicts.length) throw new ScheduleError("CONFLICT", `The dated schedule conflicts with retained classes or another semester: ${datedConflicts.join(", ")}.`);
   const sectionIds = [...new Set(draft.entries.map(p => data.allocations.find(a => a.id === p.allocationId)!.sectionId))];
   const facultyIds = [...new Set(draft.entries.map(p => data.allocations.find(a => a.id === p.allocationId)!.facultyId))];
   const recipients = await tx.user.findMany({ where: { departmentId, active: true, OR: [{ role: { in: ["ADMIN", "COORDINATOR", "HOD"] } }, { faculty: { id: { in: facultyIds } } }, { role: "STUDENT", memberships: { some: { archived: false, sectionId: { in: sectionIds } } } }] }, select: { id: true }, orderBy: { id: "asc" } });

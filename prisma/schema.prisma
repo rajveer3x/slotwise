@@ -46,6 +46,7 @@ model Department {
   resolutionItems ResolutionItem[]
   substitutionRequests SubstitutionRequest[]
   saturdayExceptions SaturdayException[]
+  publications SchedulePublication[]
 
 }
 
@@ -354,14 +355,18 @@ model ClassOccurrence {
   faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
   sectionId String
   section Section @relation(fields: [sectionId, departmentId], references: [id, departmentId], onDelete: Restrict)
-  roomId String
-  room Room @relation(fields: [roomId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  roomId String?
+  room Room? @relation(fields: [roomId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  meetingUrl String?
+  resolutionTier Int?
+  publicationId String?
+  publication SchedulePublication? @relation(fields: [publicationId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
   localDate String @db.VarChar(10)
   startAt DateTime @db.Timestamptz(3)
   endAt DateTime @db.Timestamptz(3)
   schedulingStatus SchedulingStatus @default(ACTIVE)
   deliveryStatus DeliveryStatus @default(PENDING)
-  // Future leave-resolution publication sets this; template revisions fail closed.
+  // Recovery publication sets this; template revisions fail closed.
   resolved Boolean @default(false)
   replacesId String? @unique
   replaces ClassOccurrence? @relation("Replacement", fields: [replacesId], references: [id], onDelete: Restrict)
@@ -369,7 +374,7 @@ model ClassOccurrence {
   reservations ResourceReservation[]
   leaveRequestId String?
   leaveRequest LeaveRequest? @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict)
-  @@unique([entryId, localDate])
+  @@index([entryId, localDate])
   @@unique([id, departmentId])
   @@index([departmentId, startAt, schedulingStatus])
 }
@@ -475,6 +480,7 @@ model ResolutionPlan {
   policySnapshot Json
   snapshotToken String
   items ResolutionItem[]
+  publications SchedulePublication[]
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   @@unique([leaveRequestId, ownerId])
   @@unique([id, departmentId])
@@ -489,6 +495,9 @@ model ResolutionItem {
   plan ResolutionPlan @relation(fields: [planId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
   occurrenceId String
   occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  status String @default("DRAFT")
+  publicationId String?
+  publication SchedulePublication? @relation(fields: [publicationId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
   selectedCandidateId String?
   rejectedCandidates Json
   explanation Json
@@ -558,4 +567,21 @@ model SaturdayException {
   closureReason String?
   @@index([departmentId, status])
   @@index([itemId])
+}
+
+// Immutable safe before/after details for one atomic selected subset.
+model SchedulePublication {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  planId String
+  plan ResolutionPlan @relation(fields: [planId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  actorId String
+  previewFingerprint String
+  details Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  items ResolutionItem[]
+  occurrences ClassOccurrence[]
+  @@unique([id, departmentId])
+  @@index([departmentId, createdAt])
 }

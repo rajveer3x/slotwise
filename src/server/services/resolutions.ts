@@ -4,11 +4,10 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { getDb } from "@/server/db";
 import { AccessError, actorSelect, sessionIdentity } from "@/server/auth/session";
-import { instant } from "@/domain/scheduling/timetable";
-import { resolveBatch, resolutionPolicy, type Assignment, type Decisions, type ResolutionSnapshot } from "@/domain/resolution/engine";
+import { resolveBatch, type Decisions, type ResolutionSnapshot } from "@/domain/resolution/engine";
 import { resolutionCommand, resolutionDecisions, type Board, type ResolutionResult } from "@/features/resolutions/schema";
 import { consentHistory, expireCovers, invalidateItemConsent } from "./consent-store";
-import { schedulingData, occurrenceInclude, type StoredOccurrence, type Tx, ScheduleError } from "./scheduling-store";
+import { resolutionSnapshot, type Tx, ScheduleError } from "./scheduling-store";
 
 export async function resolutionActor(tx: Tx, id: string | null) {
   const actor = id ? await tx.user.findUnique({ where: { id }, select: actorSelect }) : null;
@@ -17,24 +16,8 @@ export async function resolutionActor(tx: Tx, id: string | null) {
   if (actor.department.timezone !== "Asia/Kolkata") throw new ScheduleError("VALIDATION_ERROR", "This pilot supports Asia/Kolkata only.");
   return actor;
 }
-function asAssignment(o: StoredOccurrence): Assignment {
-  return { occurrenceId: o.id, obligationId: o.teachingObligationId, allocationId: o.teachingObligation.allocationId, facultyId: o.facultyId, sectionId: o.sectionId, roomId: o.roomId, date: o.localDate, startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
-}
-// All resources and boundary weeks are read within the caller's repeatable-read or locked transaction.
-async function snapshot(tx: Tx, departmentId: string, affectedIds: string[], hypotheticalLeave?: ResolutionSnapshot["leaves"][number]): Promise<ResolutionSnapshot> {
-  const data = await schedulingData(tx, departmentId);
-  const department = await tx.department.findUniqueOrThrow({ where: { id: departmentId }, select: { onlineTeachingEnabled: true } });
-  const semesters = await tx.semester.findMany({ where: { departmentId }, select: { id: true, startDate: true, endDate: true, archived: true, scheduleRevision: true }, orderBy: { id: "asc" } });
-  const holidays = await tx.holiday.findMany({ where: { departmentId, archived: false }, select: { semesterId: true, date: true } });
-  const leaves = await tx.leaveRequest.findMany({ where: { departmentId, status: "APPROVED" }, select: { facultyId: true, startDate: true, endDate: true } });
-  const faculty = await tx.faculty.findMany({ where: { departmentId }, select: { id: true, targetMinutesPerWeek: true } });
-  const sections = await tx.section.findMany({ where: { departmentId }, select: { id: true, preferredPeriodsPerDay: true } });
-  const rows = await tx.classOccurrence.findMany({ where: { departmentId, OR: [{ schedulingStatus: "ACTIVE" }, { id: { in: affectedIds } }] }, include: occurrenceInclude, orderBy: { id: "asc" } });
-  const now = new Date();
-  return { data, faculty: faculty.map(f => ({ ...f, confirmedCoversThisMonth: 0 })), sections, semesters, holidays, leaves: [...leaves, ...(hypotheticalLeave ? [hypotheticalLeave] : [])], active: rows.filter(o => o.schedulingStatus === "ACTIVE" && !affectedIds.includes(o.id)).map(asAssignment), affected: rows.filter(o => affectedIds.includes(o.id)).map(asAssignment), swappableIds: rows.filter(o => o.schedulingStatus === "ACTIVE" && o.deliveryStatus === "PENDING" && !o.resolved && o.startAt > now && !affectedIds.includes(o.id)).map(o => o.id), now: now.toISOString(), onlineEnabled: department.onlineTeachingEnabled, policy: resolutionPolicy };
-}
 export async function estimateResolution(tx: Tx, departmentId: string, ids: string[], leave: ResolutionSnapshot["leaves"][number]) {
-  const s = await snapshot(tx, departmentId, ids, leave), decisions: Decisions = { selected: {}, rejected: {} };
+  const s = await resolutionSnapshot(tx, departmentId, ids, leave), decisions: Decisions = { selected: {}, rejected: {} };
   // Provisional greedy reservations prevent the estimate double-counting one free interval.
   for (const item of resolveBatch(s)) {
     const current = resolveBatch(s, decisions).find(x => x.original.occurrenceId === item.original.occurrenceId)!;
@@ -48,7 +31,7 @@ export async function buildResolutionBoard(tx: Tx, actor: Awaited<ReturnType<typ
   const leave = await tx.leaveRequest.findFirst({ where: { id: leaveId, departmentId, status: "APPROVED" }, select: { id: true, semesterId: true, version: true } });
   if (!leave) throw new AccessError("FORBIDDEN");
   const rows = await tx.classOccurrence.findMany({ where: { departmentId, leaveRequestId: leaveId, schedulingStatus: "CANCELLED", deliveryStatus: "PENDING", resolved: false, replacement: null, teachingObligation: { occurrences: { none: { schedulingStatus: "ACTIVE" } } } }, select: { id: true } });
-  const s = await snapshot(tx, departmentId, rows.map(o => o.id));
+  const s = await resolutionSnapshot(tx, departmentId, rows.map(o => o.id));
   const plan = await tx.resolutionPlan.findUnique({ where: { leaveRequestId_ownerId: { leaveRequestId: leaveId, ownerId: actor.id } }, include: { items: true } });
   const saved: Decisions = { selected: {}, rejected: {} };
   for (const item of plan?.items ?? []) {
@@ -115,16 +98,17 @@ export async function changeResolution(actorId: string | null, input: unknown): 
       if (command.operation === "compute") return { ok: true, message: "Recomputed against current resources. Review choices, then save the draft. Nothing is reserved.", board: { ...board, stale: false } };
       if (board.token !== command.expectedToken || board.planVersion !== command.expectedVersion) throw new ScheduleError("STALE_VERSION", "The schedule, policy or draft changed. Recompute and review before saving. Your choices are retained.");
       if (board.items.some(i => i.selectionError)) throw new ScheduleError("CONFLICT", "A selected candidate is no longer valid in this batch. Recompute and choose again or clear it.");
-      const data = { baseScheduleRevision: board.revision, revisionSnapshot: board.revisions as Prisma.InputJsonValue, policySnapshot: { ...s.policy, onlineEnabled: s.onlineEnabled }, snapshotToken: board.token };
+      if (plan?.status === "PUBLISHED" && !board.items.length) throw new ScheduleError("CONFLICT", "This plan is already published. No unresolved classes need a draft.");
+      const data = { status: "DRAFT", baseScheduleRevision: board.revision, revisionSnapshot: board.revisions as Prisma.InputJsonValue, policySnapshot: { ...s.policy, onlineEnabled: s.onlineEnabled }, snapshotToken: board.token };
       const stored = plan ? await tx.resolutionPlan.update({ where: { id: plan.id }, data: { ...data, version: { increment: 1 } } }) : await tx.resolutionPlan.create({ data: { ...data, departmentId, leaveRequestId: command.leaveId, ownerId: actorId } });
       // Keep stable items so response/exception foreign keys and terminal history survive edits.
       const savedSelections: Board["savedSelections"] = {};
-      for (const old of plan?.items ?? []) if (!board.items.some(i => i.original.occurrenceId === old.occurrenceId)) {
+      for (const old of plan?.items ?? []) if (old.status !== "PUBLISHED" && !board.items.some(i => i.original.occurrenceId === old.occurrenceId)) {
         await invalidateItemConsent(tx, departmentId, actorId, old.id, null, new Date());
         await tx.resolutionItem.update({ where: { id: old.id }, data: { selectedCandidateId: null } });
       }
       for (const item of board.items) {
-        const data = { selectedCandidateId: item.selected?.id ?? null, rejectedCandidates: (command.decisions.rejected[item.original.occurrenceId] ?? []) as Prisma.InputJsonValue, explanation: item as unknown as Prisma.InputJsonValue };
+        const data = { status: "DRAFT", selectedCandidateId: item.selected?.id ?? null, rejectedCandidates: (command.decisions.rejected[item.original.occurrenceId] ?? []) as Prisma.InputJsonValue, explanation: item as unknown as Prisma.InputJsonValue };
         const row = await tx.resolutionItem.upsert({ where: { planId_occurrenceId: { planId: stored.id, occurrenceId: item.original.occurrenceId } }, create: { ...data, departmentId, planId: stored.id, occurrenceId: item.original.occurrenceId }, update: data });
         await invalidateItemConsent(tx, departmentId, actorId, row.id, data.selectedCandidateId, new Date());
         savedSelections[item.original.occurrenceId] = { itemId: row.id, candidateId: data.selectedCandidateId };

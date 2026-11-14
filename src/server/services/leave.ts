@@ -41,7 +41,7 @@ async function affected(tx: Tx, departmentId: string, facultyId: string, startDa
   return tx.classOccurrence.findMany({ where: { departmentId, facultyId, localDate: { gte: startDate, lte: endDate }, startAt: { gt: new Date() }, schedulingStatus: "ACTIVE", deliveryStatus: "PENDING" }, include: { teachingObligation: { include: { allocation: { include: { course: { select: { code: true, name: true } } } } } }, section: { select: { code: true } }, room: { select: { code: true } }, entry: { select: { timetableVersion: { select: { semesterId: true } } } } }, orderBy: [{ startAt: "asc" }, { id: "asc" }] });
 }
 function impactFor(rows: Awaited<ReturnType<typeof affected>>, revision: number): LeaveImpact {
-  const classes = rows.map(o => ({ id: o.id, date: o.localDate, startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), minutes: Math.round((o.endAt.getTime() - o.startAt.getTime()) / 60000), course: `${o.teachingObligation.allocation.course.code} · ${o.teachingObligation.allocation.course.name}`, section: o.section.code, room: o.room.code }));
+  const classes = rows.map(o => ({ id: o.id, date: o.localDate, startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), minutes: Math.round((o.endAt.getTime() - o.startAt.getTime()) / 60000), course: `${o.teachingObligation.allocation.course.code} · ${o.teachingObligation.allocation.course.name}`, section: o.section.code, room: o.room?.code ?? "Online" }));
   return { classes, minutes: classes.reduce((sum, o) => sum + o.minutes, 0), revision };
 }
 function failure(error: unknown): LeaveResult {
@@ -85,7 +85,8 @@ export async function readLeaveWorkspace(actorId: string | null, leaveId?: strin
       const semester = await tx.leaveRequest.findUniqueOrThrow({ where: { id: selected.id }, select: { semester: { select: { scheduleRevision: true } } } });
       const current = await affected(tx, departmentId, selected.facultyId, selected.startDate, selected.endDate);
       const cancelled = await tx.classOccurrence.count({ where: { departmentId, leaveRequestId: selected.id } });
-      detail = { ...selected, privateFields, impact: impactFor(current, semester.semester.scheduleRevision), cancelled, canReview: actor.role === "HOD" && selected.faculty.userId !== actor.id && selected.status === "SUBMITTED", canWithdraw: selected.faculty.userId === actor.id && ["FACULTY", "HOD"].includes(actor.role) && selected.status === "SUBMITTED" };
+      const unresolved = await tx.classOccurrence.count({ where: { departmentId, leaveRequestId: selected.id, replacement: null, teachingObligation: { occurrences: { none: { OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } } } } });
+      detail = { ...selected, privateFields, impact: impactFor(current, semester.semester.scheduleRevision), cancelled, unresolved, canReview: actor.role === "HOD" && selected.faculty.userId !== actor.id && selected.status === "SUBMITTED", canWithdraw: selected.faculty.userId === actor.id && ["FACULTY", "HOD"].includes(actor.role) && selected.status === "SUBMITTED" };
     }
     const semesters = await tx.semester.findMany({ where: { departmentId, archived: false, endDate: { gte: localDate() } }, select: { id: true, name: true, startDate: true, endDate: true, scheduleRevision: true }, orderBy: [{ active: "desc" }, { startDate: "asc" }] });
     const eligibleApprover = profile ? await tx.user.count({ where: { departmentId, role: "HOD", active: true, id: { not: actor.id } } }) > 0 : false;

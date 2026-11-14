@@ -28,7 +28,7 @@ async function currentSelection(tx: Tx, ownerId: string, leaveId: string, occurr
   const built = await buildResolutionBoard(tx, owner, leaveId);
   const item = built.plan?.items.find(i => i.occurrenceId === occurrenceId);
   const selected = built.board.items.find(i => i.original.occurrenceId === occurrenceId)?.selected;
-  if (!item || !selected || built.board.items.some(i => i.selectionError) || !exactCandidate(selected, candidateId) || item.selectedCandidateId !== candidateId) throw new ScheduleError("STALE_VERSION", "The saved candidate or current eligibility changed. Recompute, save and request fresh consent.");
+  if (!item || item.status !== "DRAFT" || !selected || built.board.items.some(i => i.selectionError) || !exactCandidate(selected, candidateId) || item.selectedCandidateId !== candidateId) throw new ScheduleError("STALE_VERSION", "The saved candidate or current eligibility changed. Recompute, save and request fresh consent.");
   return { ...built, item, selected };
 }
 function failure(error: unknown): CoverResult {
@@ -96,7 +96,7 @@ export async function changeCover(actorId: string | null, input: unknown): Promi
         const status = coverState(cover.status, cover.expiresAt, now);
         if (status === "EXPIRED") return { ok: false, code: "EXPIRED", message: "The response deadline has passed. This invitation is expired; ask the coordinator to recompute." };
         if (command.operation === "cancel-cover") {
-          if (!["PENDING", "ACCEPTED"].includes(status)) throw new ScheduleError("CONFLICT", "This invitation already has a final state.");
+          if (cover.item.status === "PUBLISHED" || !["PENDING", "ACCEPTED"].includes(status)) throw new ScheduleError("CONFLICT", "This invitation already has a final state.");
           await tx.substitutionRequest.update({ where: { id: cover.id }, data: { status: "CANCELLED", closedAt: now, closureReason: "Cancelled by the requesting coordinator." } });
           await consentEvent(tx, departmentId, actorId, cover.id, "COVER_CANCELLED", status, "CANCELLED", [cover.invitedUserId, cover.requestedById]);
           result = { ok: true, id: cover.id, message: "Invitation cancelled. Teaching is unchanged; a new invitation is needed for consent." };
@@ -189,13 +189,13 @@ export async function readCoverWorkspace(actorId: string | null): Promise<CoverW
       const own = r.invitedUserId === actor.id && candidate.assignments[0].facultyId === profile?.id;
       // Return labels for this card only, rather than identities from the entire department.
       const cardLabels = Object.fromEntries(candidate.assignments.flatMap(a => [a.allocationId, a.facultyId, a.sectionId, a.roomId ?? ""]).map(id => [id, labels[id] ?? "Unavailable record"]));
-      coverCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "cover", candidateId: candidate.id, candidate, labels: cardLabels, status, createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt.toISOString(), respondedAt: r.respondedAt?.toISOString(), closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, invitedName: r.invitedUser.name, canRespond: own && status === "PENDING" && current, canCancel: r.requestedById === actor.id && manager(actor.role) && ["PENDING", "ACCEPTED"].includes(status), canReview: false, stale: ["PENDING", "ACCEPTED"].includes(status) && !current });
+      coverCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "cover", candidateId: candidate.id, candidate, labels: cardLabels, status, createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt.toISOString(), respondedAt: r.respondedAt?.toISOString(), closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, invitedName: r.invitedUser.name, canRespond: own && status === "PENDING" && current, published: r.item.status === "PUBLISHED", canCancel: r.item.status !== "PUBLISHED" && r.requestedById === actor.id && manager(actor.role) && ["PENDING", "ACCEPTED"].includes(status), canReview: false, stale: r.item.status !== "PUBLISHED" && ["PENDING", "ACCEPTED"].includes(status) && !current });
     }
     const exceptionCards: ConsentCard[] = [];
     for (const r of exceptions) {
       const candidate = r.candidate as unknown as Candidate, current = await valid(r.item, candidate);
       const cardLabels = Object.fromEntries(candidate.assignments.flatMap(a => [a.allocationId, a.facultyId, a.sectionId, a.roomId ?? ""]).map(id => [id, labels[id] ?? "Unavailable record"]));
-      exceptionCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "saturday", candidateId: candidate.id, candidate, labels: cardLabels, status: r.status, createdAt: r.createdAt.toISOString(), respondedAt: r.decidedAt?.toISOString(), reason: r.requestReason, decisionReason: r.decisionReason ?? undefined, closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, canRespond: false, canCancel: false, canReview: actor.role === "HOD" && r.requestedById !== actor.id && r.item.occurrence.leaveRequest?.faculty.userId !== actor.id && r.status === "PENDING" && current, earlierTiers: r.earlierTiers as unknown as Rejection[], stale: ["PENDING", "APPROVED"].includes(r.status) && !current });
+      exceptionCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "saturday", candidateId: candidate.id, candidate, labels: cardLabels, status: r.status, createdAt: r.createdAt.toISOString(), respondedAt: r.decidedAt?.toISOString(), reason: r.requestReason, decisionReason: r.decisionReason ?? undefined, closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, canRespond: false, canCancel: false, canReview: actor.role === "HOD" && r.requestedById !== actor.id && r.item.occurrence.leaveRequest?.faculty.userId !== actor.id && r.status === "PENDING" && current, earlierTiers: r.earlierTiers as unknown as Rejection[], published: r.item.status === "PUBLISHED", stale: r.item.status !== "PUBLISHED" && ["PENDING", "APPROVED"].includes(r.status) && !current });
     }
     const notifications = await tx.notification.findMany({ where: { departmentId, recipientId: actor.id, message: { startsWith: "Recovery request:" } }, select: { id: true, message: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 30 });
     return { covers: coverCards, exceptions: exceptionCards, notifications: notifications.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })), computedAt };
