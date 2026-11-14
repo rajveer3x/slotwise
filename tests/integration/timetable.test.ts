@@ -48,7 +48,7 @@ test("publication skips holidays, records pending delivery, audit and recipients
   assert.equal(await db.teachingObligation.count({ where: { departmentId: f.departmentId } }), 6);
   const rows = await db.classOccurrence.findMany({ where: { departmentId: f.departmentId } }); assert.equal(rows.length, 6); assert.ok(rows.every(o => o.localDate !== "2099-01-12" && o.deliveryStatus === "PENDING"));
   assert.equal(await db.resourceReservation.count({ where: { departmentId: f.departmentId } }), 18);
-  assert.equal(await db.auditEvent.count({ where: { departmentId: f.departmentId } }), 1);
+  assert.equal(await db.auditEvent.count({ where: { departmentId: f.departmentId, action: "TIMETABLE_PUBLISHED" } }), 1);
   assert.equal(await db.notification.count({ where: { departmentId: f.departmentId } }), 5);
   assert.equal((await changeTimetable(f.coordinator.id, { ...command, previewFingerprint: "a".repeat(64) })).code, "CONFLICT");
   assert.equal((await changeTimetable(f.admin.id, command)).code, "CONFLICT");
@@ -76,7 +76,7 @@ test("a late transaction failure rolls back every publication effect, then the s
   // have been written. This is test-only fault injection, with no global trigger.
   await db.notification.create({ data: { departmentId: f.departmentId, recipientId: f.teacher.id, changeId: d.draftId, message: "Synthetic collision" } });
   const failed = await changeTimetable(f.coordinator.id, command); assert.equal(failed.ok, false);
-  for (const count of [await db.classOccurrence.count({ where: { departmentId: f.departmentId } }), await db.teachingObligation.count({ where: { departmentId: f.departmentId } }), await db.resourceReservation.count({ where: { departmentId: f.departmentId } }), await db.auditEvent.count({ where: { departmentId: f.departmentId } })]) assert.equal(count, 0);
+  for (const count of [await db.classOccurrence.count({ where: { departmentId: f.departmentId } }), await db.teachingObligation.count({ where: { departmentId: f.departmentId } }), await db.resourceReservation.count({ where: { departmentId: f.departmentId } }), await db.auditEvent.count({ where: { departmentId: f.departmentId, action: "TIMETABLE_PUBLISHED" } })]) assert.equal(count, 0);
   assert.equal((await db.timetableVersion.findUniqueOrThrow({ where: { id: d.draftId } })).status, "DRAFT");
   assert.equal((await db.semester.findUniqueOrThrow({ where: { id: f.semester.id } })).scheduleRevision, 0);
   await db.notification.deleteMany({ where: { departmentId: f.departmentId } }); good(await changeTimetable(f.coordinator.id, command));

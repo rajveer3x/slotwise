@@ -413,6 +413,9 @@ model AuditEvent {
   before Json
   after Json
   createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([departmentId, createdAt, id])
+  @@index([departmentId, entityId])
 }
 model Notification {
   id String @id @default(cuid())

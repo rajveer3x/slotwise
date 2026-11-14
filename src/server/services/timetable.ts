@@ -10,6 +10,11 @@ import { alternatives, completeness, materialize, localDate, validatePlacements,
 import { scheduleInput, type ScheduleResult, type Preview } from "@/features/timetable/schema";
 import { guardApprovedAbsence, schedulingData, ScheduleError, occurrenceInclude, asPlacement, asAssignment, resolutionSnapshot, type Tx } from "./scheduling-store";
 
+function auditEntries(entries: Placement[]) {
+  return entries.map(({ seriesId, allocationId, roomId, weekday, startMinute, endMinute }) =>
+    ({ seriesId, allocationId, roomId, weekday, startMinute, endMinute }));
+}
+
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 async function actorFor(tx: Tx, id: string | null, write = false) {
   const actor = id ? await tx.user.findUnique({ where: { id }, select: actorSelect }) : null;
@@ -115,6 +120,11 @@ export async function changeTimetable(actorId: string | null, input: unknown): P
         const previous = await tx.timetableVersion.findFirst({ where: { semesterId: semester.id, departmentId, status: "PUBLISHED" }, include: { entries: true }, orderBy: { publishedAt: "desc" } });
         const draft = await tx.timetableVersion.create({ data: { departmentId, semesterId: semester.id, effectiveFrom, effectiveTo: semester.endDate, baseScheduleRevision: semester.scheduleRevision } });
         if (previous) await tx.timetableEntry.createMany({ data: previous.entries.map(({ seriesId, allocationId, roomId, weekday, startMinute, endMinute }) => ({ departmentId, timetableVersionId: draft.id, seriesId, allocationId, roomId, weekday, startMinute, endMinute })) });
+        await tx.auditEvent.create({ data: {
+          departmentId, actorId, action: "TIMETABLE_DRAFT_CREATED", entityId: draft.id, before: {},
+          after: { status: draft.status, version: draft.version, semesterId: semester.id, effectiveFrom,
+            revision: semester.scheduleRevision, entries: auditEntries(previous?.entries ?? []) },
+        } });
         result = { ok: true, message: "Draft created. It reserves no resources.", draftId: draft.id, version: draft.version, revision: semester.scheduleRevision };
       } else {
         const draft = await tx.timetableVersion.findFirst({ where: { id: command.draftId ?? "", departmentId, semesterId: semester.id }, include: { entries: true } });
@@ -137,6 +147,11 @@ export async function changeTimetable(actorId: string | null, input: unknown): P
           await tx.timetableEntry.deleteMany({ where: { timetableVersionId: draft.id } });
           await tx.timetableEntry.createMany({ data: entries.map(e => ({ ...e, departmentId, timetableVersionId: draft.id })) });
           await tx.timetableVersion.update({ where: { id: draft.id }, data: { effectiveFrom: command.effectiveFrom, effectiveTo: semester.endDate, baseScheduleRevision: semester.scheduleRevision, version: { increment: 1 } } });
+          await tx.auditEvent.create({ data: {
+            departmentId, actorId, action: "TIMETABLE_DRAFT_SAVED", entityId: draft.id,
+            before: { version: draft.version, effectiveFrom: draft.effectiveFrom, entries: auditEntries(draft.entries) },
+            after: { version: draft.version + 1, effectiveFrom: command.effectiveFrom, entries: auditEntries(entries) },
+          } });
           result = { ok: true, message: "Draft saved. No resources reserved.", draftId: draft.id, version: draft.version + 1, revision: semester.scheduleRevision };
         } else {
           if (draft.baseScheduleRevision !== semester.scheduleRevision) throw new ScheduleError("STALE_VERSION", "Master data or the schedule changed. Refresh and save this draft to revalidate it before previewing.");
@@ -145,18 +160,25 @@ export async function changeTimetable(actorId: string | null, input: unknown): P
           if (command.previewFingerprint !== plan.preview.fingerprint) throw new ScheduleError("STALE_VERSION", "The preview is missing or changed. Preview this draft again before publication.");
           await tx.resourceReservation.deleteMany({ where: { occurrenceId: { in: plan.cancel.map(o => o.id) } } });
           await tx.classOccurrence.updateMany({ where: { id: { in: plan.cancel.map(o => o.id) } }, data: { schedulingStatus: "CANCELLED" } });
+          const occurrenceIds = [];
           for (const p of plan.next) {
             const a = plan.data.allocations.find(a => a.id === p.allocationId)!;
             let obligation = plan.obligationMap.get(plan.key(p.seriesId, p.localDate));
             if (!obligation) obligation = await tx.teachingObligation.create({ data: { departmentId, allocationId: p.allocationId, seriesId: p.seriesId, weekDate: weekOf(p.localDate), originalDate: p.localDate, requiredMinutes: p.endMinute - p.startMinute } });
             const old = plan.cancel.find(o => o.teachingObligationId === obligation.id);
             const occurrence = await tx.classOccurrence.create({ data: { departmentId, entryId: plan.draft.entries.find(e => e.seriesId === p.seriesId)!.id, teachingObligationId: obligation.id, facultyId: a.facultyId, sectionId: a.sectionId, roomId: p.roomId, localDate: p.localDate, startAt: p.startAt, endAt: p.endAt, replacesId: old?.id } });
+            occurrenceIds.push(occurrence.id);
             await tx.resourceReservation.createMany({ data: ([['FACULTY', a.facultyId], ['SECTION', a.sectionId], ['ROOM', p.roomId]] as const).map(([resourceType, resourceId]) => ({ departmentId, occurrenceId: occurrence.id, resourceType, resourceId, startAt: p.startAt, endAt: p.endAt })) });
           }
           if (plan.next.some(p => p.startAt <= new Date())) throw new ScheduleError("STALE_VERSION", "A proposed class started while publishing. Refresh and choose a later effective date.");
           await tx.timetableVersion.update({ where: { id: draft.id }, data: { status: "PUBLISHED", publishedAt: new Date(), version: { increment: 1 } } });
           await tx.semester.update({ where: { id: semester.id }, data: { scheduleRevision: { increment: 1 } } });
-          await tx.auditEvent.create({ data: { departmentId, actorId, action: "TIMETABLE_PUBLISHED", entityId: draft.id, before: { revision: semester.scheduleRevision, occurrenceIds: plan.cancel.map(o => o.id) }, after: { revision: semester.scheduleRevision + 1, effectiveFrom: draft.effectiveFrom, occurrences: plan.next.length } } });
+          await tx.auditEvent.create({ data: {
+            departmentId, actorId, action: "TIMETABLE_PUBLISHED", entityId: draft.id,
+            before: { status: draft.status, revision: semester.scheduleRevision, occurrenceIds: plan.cancel.map(o => o.id) },
+            after: { status: "PUBLISHED", revision: semester.scheduleRevision + 1, effectiveFrom: draft.effectiveFrom,
+              occurrences: occurrenceIds.length, occurrenceIds },
+          } });
           await tx.notification.createMany({ data: plan.recipients.map(r => ({ departmentId, recipientId: r.id, changeId: draft.id, message: `Timetable published from ${draft.effectiveFrom}. View your timetable for details.` })) });
           result = { ok: true, message: `Published ${plan.next.length} dated classes. Delivery remains pending.`, draftId: draft.id, revision: semester.scheduleRevision + 1 };
         }

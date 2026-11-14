@@ -155,3 +155,10 @@ ResolutionPlan now has exactly one source: approved leave or a not-held source o
 `server/services/notifications.ts` scopes inbox and detail reads by authenticated recipient and department. Recovery publications snapshot the recipient's affected obligation IDs with each notification. The inbox projects safe fields from the saved before/after snapshot and resolves current timetable links by teaching obligation. Earlier recovery notifications are linked to their publication by a migration and use current section/faculty scope for detailed history because the original per-class audience was not stored.
 
 Notification mutations lock and reload the actor before touching the scoped record. The acknowledgement primary key and foreign key to the original notification enforce one acknowledgement per recipient and recovery publication. The notification's read state and acknowledgement commit in one transaction. Department managers see aggregate counts from the original recipient rows. The inbox refreshes on navigation, explicit refresh and local mutations.
+
+
+## Implemented audit boundary (011)
+
+`/audit` uses an authorized Server Component with bookmarkable GET filters and an optional detail ID. `server/services/audit.ts` reloads the current actor and checks the department for list and detail reads. It queries each page in descending time and ID order from a repeatable-read PostgreSQL snapshot, then projects detail JSON through an allowlist specific to each action. Actor labels use current names in the same department, falling back to a historical account label. No audit edit or delete operation is exposed by the application.
+
+Timetable draft creation and saves write safe before/after data in the existing transaction alongside the retry receipt. Template and recovery publication events record committed occurrence IDs. Histories created before these additions retain their original contents and coverage.

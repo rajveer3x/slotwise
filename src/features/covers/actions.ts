@@ -7,6 +7,7 @@ export async function coverAction(input: unknown) {
     revalidatePath("/cover-requests");
     revalidatePath("/resolutions");
     revalidatePath("/notifications");
+    revalidatePath("/audit");
   }
   return result;
 }

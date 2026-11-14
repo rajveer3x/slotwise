@@ -115,10 +115,12 @@ export async function changePublication(actorId: string | null, input: unknown):
       // Release every side before creating any side; swaps cannot depend on write order.
       await tx.resourceReservation.deleteMany({ where: { departmentId, occurrenceId: { in: replacedIds } } });
       await tx.classOccurrence.updateMany({ where: { departmentId, id: { in: replacedIds } }, data: { schedulingStatus: "CANCELLED" } });
+      const publishedAssignments = [];
       for (const change of preview.changes) {
         const a = change.after;
         const old = await tx.classOccurrence.findUniqueOrThrow({ where: { id: change.before.occurrenceId } });
         const occurrence = await tx.classOccurrence.create({ data: { departmentId, entryId: old.entryId, teachingObligationId: old.teachingObligationId, facultyId: a.facultyId, sectionId: a.sectionId, roomId: a.roomId, localDate: a.date, startAt: instant(a.date, a.startMinute), endAt: instant(a.date, a.endMinute), replacesId: old.id, resolved: true, resolutionTier: change.tier, meetingUrl: change.meetingUrl, publicationId: publication.id } });
+        publishedAssignments.push({ ...a, occurrenceId: occurrence.id, tier: change.tier, schedulingStatus: occurrence.schedulingStatus });
         const resources: { resourceType: "FACULTY" | "SECTION" | "ROOM"; resourceId: string }[] = [{ resourceType: "FACULTY", resourceId: a.facultyId }, { resourceType: "SECTION", resourceId: a.sectionId }, ...(a.roomId ? [{ resourceType: "ROOM" as const, resourceId: a.roomId }] : [])];
         await tx.resourceReservation.createMany({ data: resources.map(r => ({ ...r, departmentId, occurrenceId: occurrence.id, startAt: occurrence.startAt, endAt: occurrence.endAt })) });
       }
@@ -134,7 +136,11 @@ export async function changePublication(actorId: string | null, input: unknown):
       const allocationIds = [...new Set(preview.changes.map(c => c.after.allocationId))];
       const allocations = await tx.courseAllocation.findMany({ where: { departmentId, id: { in: allocationIds } }, select: { semesterId: true } });
       await tx.semester.updateMany({ where: { departmentId, id: { in: [...new Set(allocations.map(a => a.semesterId))] } }, data: { scheduleRevision: { increment: 1 } } });
-      await tx.auditEvent.create({ data: { departmentId, actorId, action: "RESOLUTION_PUBLISHED", entityId: publication.id, before: { revision: preview.revision, changes: preview.changes.map(c => c.before) } as unknown as Prisma.InputJsonValue, after: { revision: preview.revision + 1, changes: preview.changes.map(c => c.after), unresolvedIds: preview.unresolved.map(a => a.occurrenceId) } as unknown as Prisma.InputJsonValue } });
+      await tx.auditEvent.create({ data: {
+        departmentId, actorId, action: "RESOLUTION_PUBLISHED", entityId: publication.id,
+        before: { revision: preview.revision, changes: preview.changes.map(c => ({ ...c.before, schedulingStatus: c.beforeStatus })) },
+        after: { revision: preview.revision + 1, changes: publishedAssignments, unresolvedIds: preview.unresolved.map(a => a.occurrenceId) },
+      } });
       await tx.notification.createMany({ data: prepared.recipientScopes.map(scope => ({
         ...scope, departmentId, changeId: publication.id, publicationId: publication.id,
         message: "Schedule recovery published.",

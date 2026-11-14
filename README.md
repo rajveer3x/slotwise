@@ -1,13 +1,13 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–009** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses, exact Saturday approvals, transactional recovery publication, delivery confirmation, a contact-minutes ledger and department reporting.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–011** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses, exact Saturday approvals, transactional recovery publication, delivery confirmation, a contact-minutes ledger, department reporting, in-app notifications and departmental audit history.
 
 ## Run locally
 
 Prerequisites: Node.js **24.22.3** (see `.nvmrc`), npm and Docker Compose. Start Docker Desktop first. Use your normal Node manager; these commands assume nvm.
 
 ```sh
-cd /Users/raj/projects/slotwise
+cd slotwise
 nvm install
 nvm use
 npm ci
@@ -18,6 +18,7 @@ Edit your ignored `.env`: set `AUTH_SECRET` to a unique random value of at least
 
 ```sh
 docker compose up -d --wait db
+npm run db:generate
 npm run db:migrate
 npm run db:seed
 npm run db:check
@@ -66,7 +67,7 @@ Try placing two classes with the same teacher, section or room at the same time.
 
 Choose **Preview publication**, review every dated Before/After change and recipient count, then **Publish N classes**. Publication skips holidays and reserves all resources atomically. Published classes have pending delivery, not earned teaching credit. Students see only classes for their current section membership. Create another draft to revise future dates: history and weekly obligation identities survive, and future resolved occurrences block template replacement.
 
-The existing demo semester ends on 18 December 2026. After that date, configure a new semester and allocations in Master data; the seed does not reset dates or overwrite edits. Tests use independently authored future fixtures, not a seeded published timetable. Notification and audit records are stored at publication; their full viewers remain later features.
+The existing demo semester ends on 18 December 2026. After that date, configure a new semester and allocations in Master data; the seed does not reset dates or overwrite edits. Tests use independently authored future fixtures, not a seeded published timetable. Open Notifications to see published updates. Staff can inspect the draft and publication events in Audit.
 
 ## Leave demo
 
@@ -122,7 +123,7 @@ After decline or expiry, recompute as coordinator and choose the next faculty or
 
 For Saturday, configure Saturday slots and original-faculty availability in Master data. Earlier feasible candidates must first be exhausted or explicitly rejected with reasons. Select/save the resulting Saturday candidate, enter a request reason and choose **Request HoD exception**. A different active departmental HoD reviews the exact candidate and attached earlier-tier explanations, then approves or rejects with a decision reason. A HoD cannot approve their own leave exception or their own request. Missing eligible approvers are reported explicitly. Candidate edits require new approval.
 
-Invitation/response/expiry/cancellation and exception actions record transactional audit events and persisted in-app updates for involved staff. `/cover-requests` shows only your scoped records and your latest 30 recovery updates. Reads derive expiry immediately; a subsequent authorized write materializes expiry history. There is no external delivery, live push or general notification/acknowledgement center yet. Recovery publication is implemented in feature 007 below; delivery confirmation and the ledger are implemented in feature 008 below. All demonstration records are synthetic; automated tests create isolated 2099 scenarios without publishing persistent seed schedules.
+Invitation/response/expiry/cancellation and exception actions record transactional audit events and persisted in-app updates for involved staff. `/cover-requests` shows only your scoped records and your latest 30 recovery updates. Reads derive expiry immediately; a subsequent authorized write materializes expiry history. Notifications provides the general in-app inbox. Acknowledgement is available for published recovery changes. Recovery publication is implemented in feature 007 below; delivery confirmation and the ledger are implemented in feature 008 below. All demonstration records are synthetic; automated tests create isolated 2099 scenarios without publishing persistent seed schedules.
 
 ## Recovery preview and publication demo (007)
 
@@ -130,7 +131,7 @@ After saving exact candidates and obtaining any required cover acceptance or Sat
 
 Publication revalidates the selected subset under the department lock. Every selected assignment, resource reservation, publication record, plan/item state, schedule revision, audit event, recipient notification and retry receipt commits together. One invalid selected class rolls back the batch. Swaps replace both sides atomically. All replacements keep their existing teaching obligations and pending delivery; original cancellations remain in history. Students see the new assignment after refreshing Timetable, including online links and an approved Saturday column/agenda day. Accepted/approved consent cards become Published and cannot be cancelled as an invitation.
 
-To demonstrate stale recovery, leave a preview open in one browser, make a harmless room-name edit or publish another recovery in a separate coordinator/admin session, then try the old preview. It is rejected without a partial publication. **Recompute current resources**, review retained choices, **Save draft** and preview again. After subset publication, remaining classes are explicitly unresolved and their old items/previews are superseded. Full notification acknowledgement and audit viewers remain later features; delivery credit is implemented below. All local tests use isolated synthetic 2099 fixtures; no persistent seed schedule is published automatically.
+To demonstrate stale recovery, leave a preview open in one browser, make a harmless room-name edit or publish another recovery in a separate coordinator/admin session, then try the old preview. It is rejected without a partial publication. **Recompute current resources**, review retained choices, **Save draft** and preview again. After subset publication, remaining classes are explicitly unresolved and their old items/previews are superseded. Students can acknowledge the recovery in Notifications. Staff can inspect the committed change in Audit. All local tests use isolated synthetic 2099 fixtures; no persistent seed schedule is published automatically.
 
 ## Delivery and ledger demo (008)
 
@@ -152,9 +153,40 @@ Open **Reports** and apply a date range that includes the affected class dates. 
 
 The persistent seed contains no published classes. For a repeatable demonstration with five affected obligations, build and run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/insights.spec.ts`. The isolated browser fixture shows 2 of 5 weekday recoveries, one Saturday, two unresolved and one confirmed delivery, then cleans up its records.
 
+## Full MVP demo and audit history
+
+Use the synthetic accounts in the setup table in separate browser profiles. Use `faculty2@demo-computing.slotwise.test` if the ranked candidate invites Faculty 2, or sign in as the other seeded faculty identified by the invitation. The seeded semester has no published classes. Place and publish a valid future timetable before starting the manual flow.
+
+1. **Faculty:** open **Leave & impact**, preview a date with published classes and submit. **HoD:** open that request in a separate session and approve it.
+2. **Coordinator:** open the approved request in **Resolutions**, inspect the ranked options, choose a substitute and save the draft. Send the exact cover invitation. **Invited faculty:** open **Cover & exceptions** and accept.
+3. **Coordinator:** return to the saved plan, select the class, compare **Before / After** and publish. **Student:** open **Notifications**, acknowledge the recovery, follow **Open current timetable** and reload to check the substitute assignment. The original is still visible using **Include cancelled classes**.
+4. **Coordinator:** reload **Classes owed** to see the planned recovery and zero new delivered minutes. After the recovery ends, the assigned substitute can confirm **Held** in **Class delivery** and the ledger credits that obligation once.
+5. **Coordinator, HoD or Admin:** open **Audit**, filter by actor, action, entity ID or inclusive Kolkata dates, and open an event for the before/after fields and any recorded staff audit reason. Leave request and rejection reasons and meeting links stay out of the audit view. A student visiting `/audit` gets access denied.
+
+For a repeatable walkthrough from an empty teaching fixture, follow [Checks](#checks) to set up the isolated PostgreSQL database and build, then run:
+
+```sh
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/mvp-demo.spec.ts --headed
+```
+
+Playwright signs in as separate synthetic coordinator, faculty, HoD, invited substitute and student accounts. It generates their credentials at runtime, uses real application forms, checks the reloaded student timetable, acknowledgement and coordinator ledger, then removes the fixture. Omit `--headed` for unattended verification. The test uses future classes so its ledger expectation is zero earned minutes. The delivery spec demonstrates immediate confirmation using an ended synthetic class.
+
+Additional deterministic scenarios use the same isolated PostgreSQL database. Supply each file and matching filter after `npm run test:e2e --`:
+
+| Scenario | File and `-g` filter |
+| --- | --- |
+| Substitute invitation, acceptance and publication | `tests/e2e/mvp-demo.spec.ts -g "full synthetic MVP"` |
+| Weekday fallback after earlier tiers fail | `tests/e2e/publication.spec.ts -g "unselected class remains unresolved"` |
+| Saturday request, exact HoD approval and student timetable | `tests/e2e/publication.spec.ts -g "approved Saturday recovery"` |
+| No feasible candidate | `tests/e2e/resolution.spec.ts -g "unresolved and empty boards"` |
+| Stale publish rejected, then re-reviewed and committed | `tests/e2e/publication.spec.ts -g "stale preview is rejected"` |
+| Forbidden student audit access and cross-department detail | `tests/e2e/mvp-demo.spec.ts` for browser role denial, `npm run test:integration` for direct service scope |
+
+Audit history is application-level and read-only for normal roles. Staff reasons are shared within the department, so use only scheduling or delivery context in those fields. Existing draft creates/saves performed before feature 011 have no audit events, and older publication events may lack committed replacement IDs. The migration adds lookup indexes and leaves historical records intact. The audit viewer covers scheduling and recovery events. Account, master-data and inbox actions have separate behavior and are outside this audit history.
+
 ## React and Next.js concepts to explain
 
-- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave`, `/resolutions`, `/cover-requests`, `/delivery`, `/classes-owed`, `/workload` and `/reports`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
+- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave`, `/resolutions`, `/cover-requests`, `/delivery`, `/classes-owed`, `/workload`, `/reports`, `/notifications` and `/audit`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
 - **Server Components:** dashboard/admin/timetable/leave/resolution/cover/delivery/ledger pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
 - **Client Components/hooks:** login and logout use React state for pending/error feedback; the menu uses refs and a native modal dialog. Account forms use React 19 `useActionState`.
 - **Server Actions:** the account-access action validates form input, calls the authorization service, commits the database transaction and revalidates `/admin/accounts`. Master-data actions revalidate `/admin`, use Zod schemas, version checks and transactionally stored retry receipts. Stale state produces a refresh message.
@@ -164,6 +196,7 @@ The persistent seed contains no published classes. For a repeatable demonstratio
 - **Response state:** Server Components resolve scoped invitations and server deadlines; controlled Client Components retain reasons and retry keys with `useTransition`/refs. Server Actions independently authorize, revalidate exact candidates under the department lock and refresh routes after commit. Candidate fingerprints, partial unique indexes and retry receipts prevent different forms of duplicate consent.
 - **Publication state:** a controlled subset and meeting-link form uses `useState`, `useRef` and `useTransition`. A read-only Server Action produces the comparison; a separate authorized action rebuilds it inside a database transaction and revalidates affected routes after commit. Preview fingerprints, edit versions, department revisions, resource exclusion and payload-bound receipts protect different boundaries.
 - **Delivery state:** protected Server Components read semester-scoped data; controlled forms use `useState`, `useRef` and `useTransition` for reasons, pending actions and retained retries. Server Actions resolve identity and revalidate routes after commit. Stable obligations, current delivery records, correction history and partial unique database indexes keep scheduling and earned minutes separate.
+- **Audit:** a protected Server Component renders paginated GET filters and scoped event links. PostgreSQL holds the audit record in the same transaction as the change. An action-specific projection selects the before/after fields the browser may receive.
 - **Reporting:** Server Components read shareable URL filters and use authorized Prisma queries with a consistent PostgreSQL snapshot. Pure functions compute the metrics that React uses for both the CSS charts and semantic tables.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
@@ -182,5 +215,4 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Work stops after feature 009; later features require a separate request.
-# slotwise
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 012–017 require a separate request.

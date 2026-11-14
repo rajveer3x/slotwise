@@ -50,6 +50,7 @@ test("coordinator previews and publishes with keyboard, student refreshes timeta
     await expect(review(page).getByRole("status").filter({ hasText: "Published 1 changes." })).toBeVisible();
     expect(await db.schedulePublication.count({ where: { departmentId: f.departmentId } })).toBe(1);
     const replacement = await db.classOccurrence.findFirstOrThrow({ where: { departmentId: f.departmentId, publicationId: { not: null } } });
+    expect(replacement.resolutionTier).toBe(3);
     await student.goto(`/timetable?semester=${f.semester.id}&week=${replacement.localDate}`); await expect(student.getByText(/Rescheduled · Original 2099-01-05/).first()).toBeVisible();
     expect(await student.locator("article.class-block").count()).toBeGreaterThan(studentBefore); await expect(student.getByText(/Delivery: Pending/).first()).toBeVisible();
     await page.reload(); await expect(page.getByText(/1 affected classes/)).toBeVisible(); await expect(page.getByText(/This draft is stale/)).toBeVisible();
