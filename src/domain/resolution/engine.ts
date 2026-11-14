@@ -11,6 +11,8 @@ export type ResolutionSnapshot = {
   semesters: { id: string; startDate: string; endDate: string; archived: boolean; scheduleRevision: number }[];
   holidays: { semesterId: string; date: string }[];
   leaves: { facultyId: string; startDate: string; endDate: string }[];
+  facultyAbsences?: { facultyId: string; startDate: string; endDate: string }[];
+  roomClosures?: { roomId: string; startDate: string; endDate: string }[];
   active: Assignment[];
   affected: Assignment[];
   swappableIds: string[];
@@ -47,10 +49,12 @@ export function assignmentErrors(assignments: Assignment[], retained: Assignment
     for (const v of s.data.availability.filter(v => !v.archived && v.facultyId === f.id && v.weekday === day).sort((a, b) => a.startMinute - b.startMinute)) if (v.startMinute <= covered) covered = Math.max(covered, v.endMinute);
     if (covered < a.endMinute) errors.add("AVAILABILITY");
     if (s.leaves.some(l => l.facultyId === f.id && l.startDate <= a.date && l.endDate >= a.date)) errors.add("LEAVE");
+    if (s.facultyAbsences?.some(l => l.facultyId === f.id && l.startDate <= a.date && l.endDate >= a.date)) errors.add("FACULTY_ABSENT");
     if (a.roomId === null) { if (tier !== 4 || !s.onlineEnabled || c.type === "LAB") errors.add("ONLINE_POLICY"); }
     else {
       if (!room || room.archived) errors.add("ROOM");
       else { if (room.capacity < section.strength) errors.add("CAPACITY"); if (c.type === "LAB" && room.type !== "LAB") errors.add("LAB"); }
+      if (s.roomClosures?.some(r => r.roomId === a.roomId && r.startDate <= a.date && r.endDate >= a.date)) errors.add("ROOM_CLOSED");
     }
     if (c.type === "LAB" && count < 2) errors.add("LAB");
     for (const b of all) {
@@ -85,7 +89,7 @@ function scoreSlot(a: Assignment, original: Assignment, retained: Assignment[], 
 }
 
 /** No I/O, clock reads, random values or mutations. Selected items are temporary batch reservations only. */
-export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { selected: {}, rejected: {} }): ResolutionItem[] {
+export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { selected: {}, rejected: {} }, { selectFirst = false } = {}): ResolutionItem[] {
   let retained = [...s.active];
   const lockedChoices = new Set<string>();
   return [...s.affected].sort((a, b) => compare(a.date, b.date) || a.startMinute - b.startMinute || compare(a.occurrenceId, b.occurrenceId)).map(original => {
@@ -152,7 +156,7 @@ export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { sel
       skippedTiers.push(t);
     }
     const selectedId = decisions.selected[original.occurrenceId];
-    const selected = candidates.find(c => c.id === selectedId) ?? null;
+    const selected = (selectedId ? candidates.find(c => c.id === selectedId) : selectFirst ? candidates[0] : null) ?? null;
     if (selected) { retained = [...retained.filter(a => !selected.removes.includes(a.occurrenceId)), ...selected.assignments]; for (const a of selected.assignments) lockedChoices.add(a.occurrenceId); }
     const selectionError = selectedId && !selected ? "Saved selection is no longer valid in this batch. Choose again or clear it." : null;
     const visible = candidates.slice(0, 3);
@@ -164,4 +168,5 @@ export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { sel
 export const rejectionLabels: Record<string, string> = {
   RESOURCE: "A required record is inactive or unavailable", SEMESTER_BOUNDARY: "Outside semester dates", STARTED: "Class has already started", HOLIDAY: "Holiday", DAY: "Teaching day is not allowed", SLOTS: "Requires complete consecutive teaching slots", QUALIFICATION: "Teacher lacks the exact course qualification", AVAILABILITY: "Teacher unavailable for the full interval", LEAVE: "Teacher has approved leave", ONLINE_POLICY: "Online disabled or lab requires in-person teaching", ROOM: "Room unavailable", CAPACITY: "Room too small", LAB: "Lab needs a suitable room and consecutive slots", FACULTY_OVERLAP: "Teacher already occupied", SECTION_OVERLAP: "Section already occupied", ROOM_OVERLAP: "Room already occupied", DAILY_LIMIT: "Teacher daily limit exceeded", WEEKLY_LIMIT: "Teacher weekly limit exceeded", MISSING_TARGET: "Positive weekly target required for substitute ranking", STAFF_REJECTED: "Explicitly rejected by coordinator", OBLIGATION_RESERVED: "Teaching obligation already selected or scheduled",
   NO_SWAP_PARTNER: "No eligible equal-duration, same-section swap partner", NO_SEARCH_SLOT: "No configured candidate resources or teaching slots within the window and semester",
+  ROOM_CLOSED: "Room closed in this simulation", FACULTY_ABSENT: "Teacher absent in this simulation",
 };

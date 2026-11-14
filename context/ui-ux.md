@@ -280,3 +280,7 @@ The weekday candidate panel in Resolutions includes a disclosure for selecting p
 ## Implemented calendar subscriptions UI (015)
 
 **Calendar feeds** uses the protected shell and shared panels, Button and Input. It shows one card per available scope, with create, copy, confirmed rotation and revocation. A new URL appears in a labelled read-only field; refresh loads current status. If a scope becomes unavailable, the owner can still revoke the prior link. In-flight controls disable duplicate actions, link copy has a keyboard selection fallback, and server feedback announces success or offers a refresh after a stale change.
+
+## Implemented what-if simulation UI (016)
+
+The manager-only **What-if simulation** workspace reuses the shell, shared controls and rounded panels. A labelled form selects a room or faculty member and inclusive local dates. The result shows baseline revisions and policy, feasibility and search status, published and projected assignments, rejected-option reasons and a readable weekly workload table. The open page keeps one result, with explicit baseline check and recompute controls. On narrow screens, comparisons stack and the workload table scrolls within its labelled region.

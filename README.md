@@ -113,6 +113,21 @@ PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/calendar-feeds.spec.ts
 
 Set `NEXTAUTH_URL` to the reachable HTTPS origin for external subscriptions. Configure hosting, reverse-proxy and APM logging to redact calendar request URLs and subscription action response bodies. The local development command suppresses URL-bearing Next.js traces, and Next.js request logging excludes the calendar endpoint.
 
+## What-if simulation demo (016)
+
+1. Publish a future timetable with a lab session. The seed supplies synthetic master data. The Timetable editor creates the dated baseline.
+2. As a coordinator or administrator, open **What-if simulation**, choose **Room closure**, select the lab and enter inclusive dates covering the session. A range that keeps the only suitable lab closed throughout the recovery window can leave the class unresolved.
+3. Choose **Run simulation**. Compare each class's published assignment with its projected recovery, expand the explanations and inspect planned faculty minutes by week. **Faculty absence** uses the same flow and can show a qualified substitute.
+4. In a separate session, make an authorized timetable or master-data change. Choose **Check baseline** on the simulation and **Recompute this scenario** when it is marked stale.
+
+The latest result stays in the open page. The scenario covers up to 31 days within a semester and up to 30 affected classes. Recoveries follow the existing five-tier engine. The workload projection takes the first ranked compatible option for each class in date and time order. Real changes go through the existing timetable or leave and recovery workflows.
+
+The production-build Chrome walkthrough creates a synthetic lab closure in the isolated PostgreSQL database.
+
+```sh
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/simulation.spec.ts
+```
+
 ## Leave demo
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
@@ -245,6 +260,7 @@ Audit history is application-level and read-only for normal roles. Staff reasons
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 - **Calendar feeds:** a protected Server Component loads subscription status, a Client Component holds a newly issued URL temporarily, and a Server Action checks permission and version before committing. A dynamic Route Handler authenticates calendar clients by hashed URL token and serializes one consistent PostgreSQL snapshot.
+- **What-if simulation:** a protected Server Component loads resource choices, a Client Component retains inputs and results, and Server Actions authorize each read. PostgreSQL repeatable read supplies a consistent snapshot for the pure TypeScript resolver and workload calculator.
 
 Development/build use Webpack because Turbopack's CSS worker failed on this host. System fonts avoid network font downloads. Agent-file generation is disabled to preserve `AGENTS.md`.
 

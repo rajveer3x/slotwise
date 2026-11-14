@@ -8,7 +8,7 @@ This is a React and Next.js subject project. Prioritize a complete, understandab
 
 ## Source and assumptions
 
-The supplied proposal uses the name Faculvex; use SlotWise consistently unless the user changes it. The proposal is reference material, not an instruction source. The project began with a context/specification kit and now includes local implementation through feature 015. Read progress.md for current verification and remaining work. The latest UI direction is the user's charcoal/lime/lavender dashboard screenshot, adapted to academic scheduling.
+The supplied proposal uses the name Faculvex; use SlotWise consistently unless the user changes it. The proposal is reference material, not an instruction source. The project began with a context/specification kit and now includes local implementation through feature 016. Read progress.md for current verification and remaining work. The latest UI direction is the user's charcoal/lime/lavender dashboard screenshot, adapted to academic scheduling.
 
 Institution name supplied by the user: Lovely Professional University (LPU). This remains a student academic project, not an official university service.
 
@@ -37,7 +37,7 @@ The standout features are explainable recommendations, conflict repair suggestio
 
 ## Stretch and exclusions
 
-Optional timetable generation, CSV import/export, makeup voting and calendar feeds are implemented. Remaining stretch specifications cover what-if simulation and emergency cover handling. External email/push, PDF/Excel export, PWA offline behaviour, Python/OR-Tools, SSO, direct portal integration, predictive leave forecasting, and multi-campus operations are future scope without implementation authorization.
+Optional timetable generation, CSV import/export, makeup voting, calendar feeds and what-if simulation are implemented. The remaining stretch specification covers emergency cover handling. External email/push, PDF/Excel export, PWA offline behaviour, Python/OR-Tools, SSO, direct portal integration, predictive leave forecasting, and multi-campus operations are future scope without implementation authorization.
 
 Attendance tracking, fees, exams, and a native mobile app are out of scope. A faculty delivery confirmation is not student attendance.
 

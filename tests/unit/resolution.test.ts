@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assignmentErrors, resolveBatch, resolutionPolicy, type Assignment, type Decisions, type ResolutionSnapshot } from "../../src/domain/resolution/engine";
+import { simulateDisruption } from "../../src/domain/scheduling/simulation";
 const original: Assignment = { occurrenceId: "absent", obligationId: "owed", allocationId: "a", facultyId: "f1", sectionId: "s", roomId: "r", date: "2099-01-05", startMinute: 540, endMinute: 600 };
 function fixture(): ResolutionSnapshot {
   return {
@@ -19,6 +20,24 @@ function fixture(): ResolutionSnapshot {
 }
 function noSubstitutes(s: ResolutionSnapshot) { s.data.qualifications = s.data.qualifications.filter(q => q.facultyId === "f1"); }
 function freeze(value: unknown) { if (value && typeof value === "object") { Object.freeze(value); Object.values(value).forEach(freeze); } }
+
+it("keeps a frozen baseline intact and marks a bounded scenario search incomplete", () => {
+  const s = fixture();
+  s.leaves = [];
+  s.active = [original];
+  s.affected = [];
+  s.policy = { ...s.policy, maxAttemptsPerItem: 1 };
+  freeze(s);
+  const scenario = { kind: "room" as const, resourceId: "r", startDate: original.date, endDate: original.date };
+  const { items, workload } = simulateDisruption(s, s.active, scenario);
+  expect(s.active).toEqual([original]);
+  expect(s.roomClosures).toBeUndefined();
+  expect(items[0].searchComplete).toBe(false);
+  expect(items[0].rejections[0].codes).toEqual(["ROOM_CLOSED"]);
+  expect(items[0].selected).toBeNull();
+  expect(workload[0]).toMatchObject({ baseline: 60, projected: 0 });
+});
+
 describe("deterministic resolution ladder", () => {
   it("requires exact qualification and positive target; ranks ratios, confirmed covers, then stable ID", () => {
     const s = fixture();

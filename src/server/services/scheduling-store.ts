@@ -60,7 +60,7 @@ export function asAssignment(o: StoredOccurrence): Assignment {
   return { occurrenceId: o.id, obligationId: o.teachingObligationId, allocationId: o.teachingObligation.allocationId, facultyId: o.facultyId, sectionId: o.sectionId, roomId: o.roomId, date: o.localDate, startMinute: Math.round((o.startAt.getTime() - instant(o.localDate, 0).getTime()) / 60000), endMinute: Math.round((o.endAt.getTime() - instant(o.localDate, 0).getTime()) / 60000) };
 }
 // All resources and boundary weeks are read within the caller's repeatable-read or locked transaction.
-export async function resolutionSnapshot(tx: Tx, departmentId: string, affectedIds: string[], hypotheticalLeave?: ResolutionSnapshot["leaves"][number]): Promise<ResolutionSnapshot> {
+export async function resolutionSnapshot(tx: Tx, departmentId: string, affectedIds: string[], hypotheticalLeave?: ResolutionSnapshot["leaves"][number], options?: { now: Date; publishedOnly: boolean }): Promise<ResolutionSnapshot> {
   const data = await schedulingData(tx, departmentId);
   const department = await tx.department.findUniqueOrThrow({ where: { id: departmentId }, select: { onlineTeachingEnabled: true } });
   const semesters = await tx.semester.findMany({ where: { departmentId }, select: { id: true, startDate: true, endDate: true, archived: true, scheduleRevision: true }, orderBy: { id: "asc" } });
@@ -68,8 +68,8 @@ export async function resolutionSnapshot(tx: Tx, departmentId: string, affectedI
   const leaves = await tx.leaveRequest.findMany({ where: { departmentId, status: "APPROVED" }, select: { facultyId: true, startDate: true, endDate: true } });
   const faculty = await tx.faculty.findMany({ where: { departmentId }, select: { id: true, targetMinutesPerWeek: true } });
   const sections = await tx.section.findMany({ where: { departmentId }, select: { id: true, preferredPeriodsPerDay: true } });
-  const rows = await tx.classOccurrence.findMany({ where: { departmentId, OR: [{ schedulingStatus: "ACTIVE" }, { id: { in: affectedIds } }] }, include: occurrenceInclude, orderBy: { id: "asc" } });
-  const now = new Date();
+  const rows = await tx.classOccurrence.findMany({ where: { departmentId, ...(options?.publishedOnly ? { entry: { timetableVersion: { status: "PUBLISHED" } } } : {}), OR: [{ schedulingStatus: "ACTIVE" }, { id: { in: affectedIds } }] }, include: occurrenceInclude, orderBy: { id: "asc" } });
+  const now = options?.now ?? new Date();
   const month = localDate(now).slice(0, 7);
   const confirmed = await tx.deliveryRecord.findMany({ where: { departmentId, current: true, status: "HELD", occurrence: { resolutionTier: 1, localDate: { startsWith: month } } }, select: { occurrence: { select: { facultyId: true } } } });
   return { data, faculty: faculty.map(f => ({ ...f, confirmedCoversThisMonth: confirmed.filter(r => r.occurrence.facultyId === f.id).length })), sections, semesters, holidays, leaves: [...leaves, ...(hypotheticalLeave ? [hypotheticalLeave] : [])], active: rows.filter(o => o.schedulingStatus === "ACTIVE" && !affectedIds.includes(o.id)).map(asAssignment), affected: rows.filter(o => affectedIds.includes(o.id)).map(asAssignment), swappableIds: rows.filter(o => o.schedulingStatus === "ACTIVE" && o.deliveryStatus === "PENDING" && !o.resolved && o.startAt > now && !affectedIds.includes(o.id)).map(o => o.id), now: now.toISOString(), onlineEnabled: department.onlineTeachingEnabled, policy: resolutionPolicy };
