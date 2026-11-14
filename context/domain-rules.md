@@ -41,7 +41,7 @@ Implement schema incrementally by feature. Add foreign keys, uniqueness and inde
 | Respond to cover request | Invited active faculty only |
 | Confirm delivery | Assigned faculty or department COORDINATOR; coordinator confirmations/corrections require an audit reason |
 | View timetable | Staff within scope; students only their section |
-| View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration |
+| View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration. FACULTY may view their own workload |
 | View private leave reasons | Requesting faculty and authorized HOD only |
 | Read notifications/acknowledge | Recipient only |
 
@@ -89,10 +89,10 @@ Maintain semester required contact minutes per course allocation and stable teac
 
 Semester outstanding = max(0, required contact minutes - unique confirmed delivered minutes). Overdue = due obligation minutes up to now minus delivered minutes for those obligations, floored at zero. Future planned classes are outstanding, not overdue. For materialized units, due time is the earliest scheduled end in the obligation history; an overdue unit remains overdue while future recovery is only planned. Report planned coverage separately. A reschedule does not add a new requirement; accepted cover does not create delivered minutes.
 
-For the MVP show scheduled and delivered teaching minutes separately per week. Planned utilization = assigned active teaching minutes / faculty target minutes for that week, including substitute assignments once. Confirmed covers and earned credit are separate recognition counters; do not add credit again to teaching load. Demo bands: below 0.9 under target, 0.9-1.1 balanced, above 1.1 over target. Hard workload limits still apply independently. Advanced weighted administrative/project duties are deferred.
+For the MVP show scheduled and delivered teaching minutes separately per week. Planned utilization = assigned active teaching minutes / faculty target minutes for that week, including substitute assignments once. Confirmed covers and earned credit are separate recognition counters; do not add credit again to teaching load. Demo bands: below 0.9 under target, 0.9-1.1 balanced, above 1.1 over target. Workload groups planned and delivered minutes by the assignment’s institution-local date in a Monday–Sunday week. Apply the current configured weekly target without prorating for holidays. Confirmed covers require current HELD tier-1 delivery records. Hard workload limits still apply independently. Advanced weighted administrative/project duties are deferred.
 
 ## Reports and audit
 
-Avoidance rate = unique leave-affected obligations with published weekday resolutions / all unique leave-affected obligations in the selected period. Show unresolved and Saturday counts beside it. This measures planned resolution, not actual teaching; report delivered recovery separately. Do not claim every resolved weekday class would otherwise have gone to Saturday. True “Saturdays avoided” requires an explicit comparable baseline, absent from the demo.
+Planned weekday recovery rate = unique obligations with a published weekday recovery / all unique obligations linked to approved leave on affected class dates in the inclusive period. Follow each obligation across the complete replacement history, including published recoveries outside the period. Classify the obligation by its active or currently confirmed HELD published recovery. A missed recovery with neither is unresolved. Show the Saturday and unresolved counts, and count delivered recoveries separately using current HELD records. A “Saturdays avoided” metric would require an explicit comparable baseline.
 
 Audit actor, action, timestamp, affected IDs, safe before/after and reasons. Normal application roles cannot edit audit events. This is application-level append-only history, not a claim of cryptographic tamper-proof storage. Do not include passwords, tokens or private leave reasons in general audit views.

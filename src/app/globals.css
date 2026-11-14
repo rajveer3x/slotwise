@@ -342,3 +342,62 @@ textarea.input { resize: vertical; }
   .bubble strong, .bubble-lime strong { font-size: 27px; }
   .bubble span { font-size: 11px; margin: 0; }
 }
+
+.insight-demo {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--color-info-tint);
+  color: var(--color-info);
+  font-size: 13px;
+  font-weight: 600;
+}
+.insight-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.insight-filters > div { flex: 1 1 170px; max-width: 225px; }
+.insight-summary, .insight-chart-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 255px), 1fr));
+}
+.insight-summary > div, .insight-chart-card {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--color-surface-subtle);
+}
+.insight-summary > div:nth-child(2) { background: var(--color-primary-tint); }
+.insight-summary > div:nth-child(3) { background: var(--color-lime); }
+.insight-summary dt { font-size: 14px; font-weight: 500; }
+.insight-summary dd { font-size: clamp(23px, 2.6vw, 36px); font-weight: 550; overflow-wrap: anywhere; }
+.insight-summary .insight-fraction { font-size: 14px; font-weight: 500; }
+.insight-bar-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 5rem) minmax(12px, 1fr) 4.25rem;
+  gap: 6px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.insight-bar-track { height: 10px; background: var(--color-canvas); border-radius: 6px; }
+.insight-bar-fill { display: block; border-radius: inherit; height: 100%; }
+.insight-bar-planned { background: var(--color-info); }
+.insight-bar-delivered { background: var(--color-success); }
+.insight-bar-target { background: var(--color-charcoal); }
+.insight-bar-unresolved { background: var(--color-warning); }
+.insight-table { overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: 16px; }
+.insight-table table { min-width: 280px; }
+.insight-table th, .insight-table td { border-bottom: 1px solid var(--color-border-subtle); }
+.insight-table tr:last-child th, .insight-table tr:last-child td { border-bottom: 0; }
+.insight-table th:not(:first-child), .insight-table td { white-space: nowrap; }
+.insight-table th[scope="row"] { min-width: 145px; }
+@media (max-width: 560px) {
+  .insight-filters { flex-direction: column; align-items: stretch; }
+  .insight-filters > div { flex: auto; max-width: none; }
+  .insight-filters > button { align-self: start; }
+}

@@ -16,7 +16,7 @@ Feature 000 installed the foundation on 2026-11-12. Features 001 and 002 added l
 | Authentication | Auth.js with credentials for local demo | Server sessions and role enforcement; verify selected-version integration |
 | Password hashing | Argon2id with maintained library | Never store plaintext passwords |
 | Scheduling grid | CSS Grid; dnd-kit when feature 003 needs it | Custom interaction and keyboard alternatives |
-| Charts | Recharts when feature 009 needs it | Workload and impact visualization |
+| Charts | Server-rendered CSS bars and semantic tables | Workload and leave recovery visualization |
 | Tests | Vitest, React Testing Library, Playwright | Domain, UI, integration and browser flows |
 | Package manager | npm with one package-lock.json | Straightforward student workflow |
 | Local database | Docker Compose PostgreSQL | Repeatable local setup |

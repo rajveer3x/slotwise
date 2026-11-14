@@ -1,6 +1,6 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–008** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses, exact Saturday approvals, transactional recovery publication, delivery confirmation and a contact-minutes ledger.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–009** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses, exact Saturday approvals, transactional recovery publication, delivery confirmation, a contact-minutes ledger and department reporting.
 
 ## Run locally
 
@@ -144,9 +144,17 @@ Refresh detects concurrent corrections while preserving reason input for review.
 
 The persistent seed creates no past or published classes. For an immediate repeatable synthetic demo, run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/delivery.spec.ts` after building: it creates an ended 60-minute assignment in the isolated test database, demonstrates delivery/correction/recovery and removes its fixtures. Integration tests also follow an obligation from missed → future recovery (zero credit) → ended held recovery (60 minutes), using a controlled clock. For a manual persistent demo, publish a valid current/future class and wait until it ends; there is no premature-confirmation bypass.
 
+## Workload and leave recovery demo (009)
+
+Sign in as HoD or coordinator and open **Workload**. Apply a date in a week with published classes. Compare each teacher’s planned minutes with their own configured weekly target, and inspect the delivered minutes and confirmed covers in the table. Sign in as faculty to see only your own row.
+
+Open **Reports** and apply a date range that includes the affected class dates. The **Leave Recovery Report** counts unique affected obligations and shows weekday, Saturday and unresolved outcomes. Publish a recovery, apply the dates again, then confirm the recovery after it ends and refresh to see delivered counts update. The **How recovery is calculated** disclosure explains the denominator. Both dashboards label synthetic demo records.
+
+The persistent seed contains no published classes. For a repeatable demonstration with five affected obligations, build and run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/insights.spec.ts`. The isolated browser fixture shows 2 of 5 weekday recoveries, one Saturday, two unresolved and one confirmed delivery, then cleans up its records.
+
 ## React and Next.js concepts to explain
 
-- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave`, `/resolutions`, `/cover-requests`, `/delivery` and `/classes-owed`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
+- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave`, `/resolutions`, `/cover-requests`, `/delivery`, `/classes-owed`, `/workload` and `/reports`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
 - **Server Components:** dashboard/admin/timetable/leave/resolution/cover/delivery/ledger pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
 - **Client Components/hooks:** login and logout use React state for pending/error feedback; the menu uses refs and a native modal dialog. Account forms use React 19 `useActionState`.
 - **Server Actions:** the account-access action validates form input, calls the authorization service, commits the database transaction and revalidates `/admin/accounts`. Master-data actions revalidate `/admin`, use Zod schemas, version checks and transactionally stored retry receipts. Stale state produces a refresh message.
@@ -156,6 +164,7 @@ The persistent seed creates no past or published classes. For an immediate repea
 - **Response state:** Server Components resolve scoped invitations and server deadlines; controlled Client Components retain reasons and retry keys with `useTransition`/refs. Server Actions independently authorize, revalidate exact candidates under the department lock and refresh routes after commit. Candidate fingerprints, partial unique indexes and retry receipts prevent different forms of duplicate consent.
 - **Publication state:** a controlled subset and meeting-link form uses `useState`, `useRef` and `useTransition`. A read-only Server Action produces the comparison; a separate authorized action rebuilds it inside a database transaction and revalidates affected routes after commit. Preview fingerprints, edit versions, department revisions, resource exclusion and payload-bound receipts protect different boundaries.
 - **Delivery state:** protected Server Components read semester-scoped data; controlled forms use `useState`, `useRef` and `useTransition` for reasons, pending actions and retained retries. Server Actions resolve identity and revalidate routes after commit. Stable obligations, current delivery records, correction history and partial unique database indexes keep scheduling and earned minutes separate.
+- **Reporting:** Server Components read shareable URL filters and use authorized Prisma queries with a consistent PostgreSQL snapshot. Pure functions compute the metrics that React uses for both the CSS charts and semantic tables.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 
@@ -173,5 +182,5 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 008; later features require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Work stops after feature 009; later features require a separate request.
 # slotwise

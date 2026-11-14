@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–008 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Features 009–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–009 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Features 010–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -19,7 +19,7 @@ Features 000–008 are implemented locally. Feature 005 adds a deterministic pur
 | 006 | Substitute response and Saturday approval | 005 | Complete; authorized responses, expiry, exact consent, concurrency and browser checks verified |
 | 007 | Change preview and publication | 006 | Complete; subset review, exact consent, real database races/rollback and browser flow verified |
 | 008 | Delivery and contact-minutes ledger | 007 | Complete; unique credit, corrections, recovery, concurrency and browser checks verified |
-| 009 | Workload and impact dashboards | 008 | Not started |
+| 009 | Workload and impact dashboards | 008 | Complete; local metric, scope and responsive browser checks verified |
 | 010 | Notifications and acknowledgement | 007, 009 | Not started |
 | 011 | Audit viewer and demo verification | 010 | Not started |
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 008 as requested. Feature 009 (workload and impact dashboards) is next only on a separate request. Scheduling/consent never earns delivery; current delivery records count stable obligations once across original/replacement history. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 009. Feature 010 (notifications and acknowledgement) is next on a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -770,3 +770,34 @@ Early checks caught a test clock API misuse, fixture-teardown reference cycle, J
 - Fresh Node 24.22.3 runs passed `npm run typecheck`, `npm run lint`, `npm test` (**54/54**), `npm run test:integration` (**111/111**), `npm run build`, `npm run check:client-bundle` (**39 bundles**) and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (**84/84**). Browser checks covered 320–1440px reflow, 200% layout zoom, keyboard scrolling and axe. Inspected fresh mobile delivery and desktop ledger screenshots.
 - `npm run db:validate`, `npm run db:check`, `npx prisma migrate status` (**11 migrations up to date**) and `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` (**empty migration**) passed. The connectivity check was rerun after Prisma generation finished. No migration changes were needed for the reporting fix. `git diff --check` passed.
 - Reviewed the 34 changed and new files for configured secret values and credential patterns. The scan found none, and environment files, generated output and browser artifacts remain ignored. Feature 009 remains the next separate task.
+
+
+## Feature 009 handoff — 2026-11-14
+
+**Status:** complete locally. All five acceptance criteria verified. The dashboards use the existing database and dependencies.
+
+- Added protected `/workload` and `/reports` pages, shared date and chart components under `src/features/insights`, feature CSS in `src/app/globals.css` and role-aware AppShell links. GET date filters, refresh timestamps, formula disclosures, empty and validation states, and keyboard-scrollable tables reuse the LPU workspace. The existing protected loading and error boundaries supply route-level feedback.
+- `src/server/services/insights.ts` reads scoped PostgreSQL snapshots and selects only the inputs needed by `src/domain/workload/metrics.ts`. Workload counts active published assignments once, on the assigned faculty member; current Held records supply delivered minutes and Held tier-1 cover counts. Utilization uses each person’s current full weekly target. The recovery cohort uses the approved-leave-affected class date and counts obligations across replacement history. Revalidation follows relevant timetable, leave, publication, delivery and master-data operations.
+- PostgreSQL tests verified different targets, assigned cover attribution, inclusive date boundaries, the 2/5 weekday rate alongside 1 Saturday and 2 unresolved, one confirmed delivery, later makeup confirmation, duplicate replacement history, delivery corrections, a concurrent uncommitted schedule change, unauthorized actors and forged department filters. Unit tests cover missing/zero targets, exact balance thresholds and the empty denominator. The current master-data schema requires positive configured targets; missing/zero handling is verified at the metric layer.
+- Test data is project-authored and isolated in `slotwise_auth_test`. The production build used the existing local configuration. The repeatable demo creates and removes fixtures in the isolated database. The report uses the current schedule and delivery state. Historical target snapshots and a baseline for Saturdays avoided are outside this feature.
+- Browser checks cover matching chart and table values, keyboard filters and table scrolling, invalid and empty periods, faculty-only data, unauthorized URLs, axe WCAG A/AA, reduced motion and 200% layout zoom at 320, 390, 768 and 1440 px. Inspected representative mobile and desktop captures for both routes. Accessibility verification covers semantic markup and automated scans. A manual screen-reader session remains unverified.
+- Demo as HoD or coordinator by opening **Workload** and **Reports** and choosing periods with published assignments and approved leave. The README has the repeatable browser fixture command. React/Next.js concepts include protected App Router Server Components, shareable URL parameters, reusable typed components and cache revalidation after Server Actions.
+- Shared facts updated in the README, overview, architecture, domain rules, UI/UX and technology context. Next feature on request is **010 notifications and acknowledgement**.
+
+### Verification
+
+| Command | Actual result |
+| --- | --- |
+| `npm run typecheck`, `npm run lint`, `npm run build` | Passed on Node 24.22.3. |
+| `npm test` | 56/56 passed. |
+| `npm run test:integration` | 115/115 passed, including 4 reporting cases. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 90/90 passed, including 6 reporting cases. |
+| `npm run check:client-bundle` | 41 bundles checked. |
+| `npm run db:validate`, `npm run db:check`, `git diff --check` | Passed. |
+
+Initial checks surfaced a missing fixture decision timestamp, an unused import and TypeScript result narrowing. Corrected all three and removed three incomplete fixtures from the isolated database. The inherited pg deprecation and ESLint support maintenance notes remain.
+
+## Feature 009 verification before GitHub push — 2026-11-14
+
+- Rechecked all five acceptance criteria and reviewed the role scope, reporting inputs, replacement history and chart/table agreement. The fresh browser run exposed an existing publication keyboard-test race: the test could focus the preview button before the draft-save transition enabled it. Updated the test to wait for enabled controls and send Enter to the target buttons. All five repetitions and the full rerun passed.
+- Fresh checks passed on Node 24.22.3: `npm run typecheck`, `npm run lint`, `npm test` (56/56), `npm run test:integration` (115/115), `npm run build`, `npm run check:client-bundle` (41 bundles), and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (90/90). `npm run db:validate`, `npm run db:check`, Prisma migration status (11 current), the database-to-schema diff (empty) and `git diff --check` also passed.
