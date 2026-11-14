@@ -7,7 +7,7 @@ import { actorSelect, AccessError, sessionIdentity } from "@/server/auth/session
 import { requireScope } from "@/server/auth/permissions";
 import { alternatives, completeness, materialize, localDate, validatePlacements, weekOf, clockTime, type Placement } from "@/domain/scheduling/timetable";
 import { scheduleInput, type ScheduleResult, type Preview } from "@/features/timetable/schema";
-import { schedulingData, ScheduleError, occurrenceInclude, asPlacement, validateDated, type Tx } from "./scheduling-store";
+import { guardApprovedAbsence, schedulingData, ScheduleError, occurrenceInclude, asPlacement, validateDated, type Tx } from "./scheduling-store";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 async function actorFor(tx: Tx, id: string | null, write = false) {
@@ -49,7 +49,7 @@ async function publication(tx: Tx, draftId: string, departmentId: string) {
   const proposed = materialize(draft.entries, draft.effectiveFrom, draft.effectiveTo, holidays.map(h => h.date));
   if (proposed.some(p => p.startAt <= now)) throw new ScheduleError("CONFLICT", "The effective date includes a class that has already started. Choose a later date.");
   const existing = await tx.classOccurrence.findMany({ where: { departmentId, entry: { timetableVersion: { semesterId: draft.semesterId } } }, include: occurrenceInclude });
-  if (existing.some(o => o.localDate >= draft.effectiveFrom && o.resolved)) throw new ScheduleError("CONFLICT", "Future classes have published leave resolutions. Review those resolutions before changing this template.");
+  if (existing.some(o => o.localDate >= draft.effectiveFrom && (o.resolved || o.leaveRequestId))) throw new ScheduleError("CONFLICT", "Future classes are affected by approved leave or published resolutions. Review recovery before changing this template.");
   const cancel = existing.filter(o => o.schedulingStatus === "ACTIVE" && o.localDate >= draft.effectiveFrom && o.deliveryStatus === "PENDING" && o.startAt > now);
   const cancelIds = new Set(cancel.map(o => o.id));
   const obligations = await tx.teachingObligation.findMany({ where: { departmentId, allocation: { semesterId: draft.semesterId } } });
@@ -61,13 +61,18 @@ async function publication(tx: Tx, draftId: string, departmentId: string) {
     // retained; moving the weekday cannot manufacture a second obligation.
     return !obligation || !existing.some(o => o.teachingObligationId === obligation.id && (o.deliveryStatus !== "PENDING" || (o.schedulingStatus === "ACTIVE" && !cancelIds.has(o.id))));
   });
+  // A boundary-week move can target an obligation whose leave cancellation is
+  // before effectiveFrom. Protect its identity, not only its original date.
+  const leaveObligations = new Set(existing.filter(o => o.leaveRequestId).map(o => o.teachingObligationId));
   for (const p of next) {
     const obligation = obligationMap.get(key(p.seriesId, p.localDate));
+    if (obligation && leaveObligations.has(obligation.id)) throw new ScheduleError("CONFLICT", "A teaching obligation was cancelled by approved leave. Use the reviewed recovery workflow instead of recreating it through a template.");
     if (obligation && (obligation.allocationId !== p.allocationId || obligation.requiredMinutes !== p.endMinute - p.startMinute)) throw new ScheduleError("CONFLICT", "Existing teaching units keep their allocation and duration. Move them without changing their duration.");
   }
   const retained = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", localDate: { gte: weekOf(draft.effectiveFrom) }, id: { notIn: [...cancelIds] } }, include: occurrenceInclude });
   const datedConflicts = validateDated([...retained.map(o => ({ ...asPlacement(o), localDate: o.localDate })), ...next], data);
   if (datedConflicts.length) throw new ScheduleError("CONFLICT", "The dated schedule conflicts with retained classes or another semester.", datedConflicts);
+  await guardApprovedAbsence(tx, departmentId, next.map(p => ({ facultyId: data.allocations.find(a => a.id === p.allocationId)!.facultyId, localDate: p.localDate })));
   const sectionIds = [...new Set(draft.entries.map(p => data.allocations.find(a => a.id === p.allocationId)!.sectionId))];
   const facultyIds = [...new Set(draft.entries.map(p => data.allocations.find(a => a.id === p.allocationId)!.facultyId))];
   const recipients = await tx.user.findMany({ where: { departmentId, active: true, OR: [{ role: { in: ["ADMIN", "COORDINATOR", "HOD"] } }, { faculty: { id: { in: facultyIds } } }, { role: "STUDENT", memberships: { some: { archived: false, sectionId: { in: sectionIds } } } }] }, select: { id: true }, orderBy: { id: "asc" } });

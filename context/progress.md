@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–003 are implemented and verified locally. Feature 003 adds manual timetable drafts, conflict explanations and alternatives, dated publication, stable obligations, reservations and publication-aware master-data guards. `/timetable` supports scoped published reads, section/faculty/room views, desktop drag and keyboard/touch editing, a mobile agenda and explicit preview/publication. Features 004–017 remain unimplemented. The feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time; the feature 003 handoff is current.
+Features 000–004 are implemented and verified locally. Feature 004 adds `/leave`: scoped leave requests, read-only impact previews against real dated occurrences, owner withdrawal and transactional separate-HoD approval/rejection. Approval cancels current future teaching, releases reservations, retains obligations/delivery, increments affected revisions and audits once. Timetable publication respects approved absence and protects leave-linked cancellations. Features 005–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time; the feature 004 handoff, follow-up verification and live-development recovery records below are current.
 
 ## MVP build order
 
@@ -14,7 +14,7 @@ Features 000–003 are implemented and verified locally. Feature 003 adds manual
 | 001 | Authentication and roles | 000 | Complete; local demo verified |
 | 002 | Master data and demo fixtures | 001 | Complete; local persistence, scope, browser and seed checks verified |
 | 003 | Timetable and clash detection | 002 | Complete; local constraints, transactions, concurrency and browser checks verified |
-| 004 | Leave requests and impact preview | 003 | Not started |
+| 004 | Leave requests and impact preview | 003 | Complete; dated impact, transactions, permissions, concurrency and browser flow verified |
 | 005 | Explainable resolution engine | 004 | Not started |
 | 006 | Substitute response and Saturday approval | 005 | Not started |
 | 007 | Change preview and publication | 006 | Not started |
@@ -37,7 +37,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 - PostgreSQL, Prisma and Tailwind are installed/verified; feature 001 adds stable NextAuth.js v4 and Argon2. tech.md owns installed versions and commands.
 - Demo policy and state transitions are documented in domain-rules.md. Keep configurable policy distinct from actual university requirements.
 - No real personal or historical university data supplied. All demo metrics must be labelled synthetic.
-- Documentation creation is complete; foundation application code now exists. Authentication, master data and manual timetable publication are implemented; leave/recovery workflows remain pending.
+- Documentation creation is complete; foundation application code now exists. Authentication, master data, manual timetable publication and leave approval are implemented; recovery recommendations and publication remain pending.
 - UI design revision: adapt the supplied Notion marketing reference into SlotWise's warm neutral workspace, readable data layouts and blue action palette. ui-ux.md owns the implementation design; reference-specific instructions and exact marketing measurements are not requirements.
 - Animmaster Lib, Skiper UI and Vengeance UI are optional sources. No component package or paid code was installed; project-owned CSS/shadcn primitives remain the baseline. Check the exact component before adoption.
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 003 as requested. Feature 004 (leave requests and impact preview) is the next product feature only on a separate request. Dated occurrences, stable obligations and reservation transactions now exist; leave absence and approval checks must be added with that feature. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 004 as requested. Feature 005 (explainable resolution engine) is next only on a separate request. Approved leave now links cancelled dated occurrences to retained unresolved obligations; feature 005 can query these and approved absences without inventing coverage counts. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -365,3 +365,114 @@ Shared context updated: README, architecture (implemented boundaries/protocol), 
 - Fetched origin before preparing the commit; local and remote main matched. The handoff includes feature 003 source, its reservation migration, scheduling tests and updated project context. The runtime-generated `next-env.d.ts` development-path changes were normalized to the already tracked production paths.
 - Application source is unchanged since the recorded verification: 24 unit, 34 PostgreSQL integration and 39 browser tests passed; all seven timetable browser cases passed again with expanded full-day and published-mobile-agenda coverage. Typecheck, lint, build, schema/connectivity and client-bundle checks passed. Those application checks were not rerun solely for this Git handoff.
 - Local environment files, credentials, dependencies, generated Prisma output, Next output, browser screenshots/traces and database contents remain excluded. Staged whitespace and configured-secret checks run before commit. This record accompanies the requested GitHub handoff; final push verification is reported in chat.
+
+
+## Feature 004 handoff — 2026-11-14
+
+**Status:** complete. All six feature acceptance criteria verified locally. Features 005–017 were not started.
+
+### Changes and key paths
+
+- `prisma/schema.prisma`, `prisma/migrations/20261114000000_leave/migration.sql`: LeaveRequest/LeaveStatus, faculty/semester/reviewer department-scoped relationships, private and rejection reasons, version/decision timestamps, linked cancelled occurrences, canonical date/decision checks and PostgreSQL inclusive-date overlap exclusion for SUBMITTED/APPROVED leave. Applied to both local databases without resetting or replacing existing records.
+- `src/domain/leave/rules.ts`, `src/features/leave/schema.ts`: institution-local full-day date/semester validation and strict operation payloads. No browser-supplied owner/actor fields are accepted. Optional private reasons and required rejection reasons are capped at 2,000 characters.
+- `src/server/services/leave.ts`: scoped list/detail queries and repeatable-read preview queries; owner-only submission/withdrawal; separate departmental HoD decisions; safe coordinator/admin DTOs and student denial. Actor/owner user locks in stable order, department serialization, permission/eligibility reload, expected status/version checks and actor/payload-bound retry receipts guard all mutations.
+- Approval re-queries current ACTIVE, future, PENDING-delivery occurrences across the inclusive local range and any overlapping semesters. Occurrences become CANCELLED and link to the approved leave; reservations are removed; obligations and delivery statuses remain unchanged. Every affected semester plus the request semester advances revision, even for zero affected classes. Status, cancellations, revision, one safe transition audit and receipt commit atomically. Audits never contain private or rejection reasons.
+- `src/server/services/{timetable,scheduling-store}.ts`: publication rejects approved absences, prospective template replacement fails closed over leave-linked cancellations, and master-data writes preserve future pending/approved leave semester bounds. Already-started and delivered teaching remain outside leave cancellation. `src/features/{master-data,timetable}/actions.ts` also refresh leave reads after relevant commits.
+- `src/app/(app)/leave/page.tsx`, `src/features/leave/{actions,components}.tsx/ts`, shell/dashboard: Server Component reads, URL-selected details, controlled dates/reasons, actual class/minute preview, explicit stale-revision/status refresh, retained failed input, pending/double-submit controls, success/error/empty feedback, private details and keyboard-operable decisions. Forms/preview sit beside each other on wide screens and stack on phones. UI explains zero impact, absence of a separate HoD approver, unresolved recovery and the lack of approved-leave reversal.
+- Tests: `tests/unit/leave.test.ts`, `tests/integration/leave.test.ts`, `tests/e2e/leave.spec.ts`, `tests/support/leave-fixture.ts`; existing timetable fixture cleanup now removes leave records after occurrences. All records are project-authored synthetic fixtures in the isolated test database. No requests or published classes were added to the persistent demo seed.
+
+### Acceptance and actual verification
+
+Used Node **24.22.3** through `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`; no dependencies added.
+
+| Command/check | Actual final result |
+| --- | --- |
+| `npm run db:validate` | Passed; Prisma schema valid. |
+| `npm run db:test:migrate` | Passed; new migration applied to `slotwise_auth_test`. |
+| `npm run db:migrate` | Passed; new migration applied to the persistent local `slotwise` database. |
+| `npm run db:check` | Passed; real PostgreSQL `SELECT 1` through Prisma. |
+| `npm run typecheck` | Passed; Prisma generation, Next route type generation and TypeScript. |
+| `npm run lint` | Passed with zero warnings. |
+| `npm test` | Passed; **28 tests across 6 files**, including local-midnight/date/overlap/input boundaries. |
+| `npm run test:integration` | Passed; **49 tests**, including **15 leave tests**. Real preview immutability; exactly two classes/120 minutes; inclusive early/late dates; zero impact; invalid/past/overlapping requests; independent database overlap protection; schedule changes before approval; authorization/self-approval/department/privacy; final statuses; concurrent decisions and retries; late failure rollback; publication races/absence guards; actor revocation/owner eligibility; preserved delivered/started teaching; cross-semester cancellation and revisions. |
+| `npm run build` | Passed with Webpack; protected dynamic `/leave` route included. |
+| `npm run check:client-bundle` | Passed; **32** emitted bundles checked for Prisma, database URLs and configured secret values. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | Final full suite passed; **47 tests**, including **8 leave tests** and all existing auth/master-data/timetable/foundation regressions. Separate-user preview/submission/approval/student cancellation; rejection and withdrawal; coordinator response privacy; pending request count; network failure; stale decision and stale preview refresh; keyboard, axe, responsive and reduced-motion checks. |
+| `git diff --check` | Passed. |
+
+The first full browser run had one test locator ambiguity because validation appeared in both the associated field error and live status; the locator was scoped to the form status and passed. Visual inspection also caught review screenshots taken during the inherited loading state: the tests now wait for the request heading before axe/screenshots. The corrected four layout tests passed, then the final full **47/47** run passed. No product failure was hidden by those test corrections.
+
+### Visual/demo checks
+
+- Captured preview/review screenshots at **320, 390, 768 and 1440px** in ignored `test-results/`; inspected representative loaded desktop/mobile screenshots. Long faculty/course labels and six-class impact lists wrap, forms stack on mobile, and no page-wide overflow was found. Axe WCAG A/AA scans passed on loaded faculty preview and HoD review screens; 200% CSS layout scaling, reduced motion, keyboard preview/submission/approval and visible accessible controls passed. These checks do not claim exhaustive screen-reader testing.
+- The browser demo used separate authenticated faculty, HoD and student users: exactly two actual classes/120 minutes previewed, submission preserved 18 reservations, approval left 12 reservations and all six obligations, and the student saw cancellation with pending delivery and no private reason.
+- To repeat using seeded demo accounts: first publish a future timetable as coordinator, then preview/submit `/leave` as `faculty@demo.slotwise.test`, approve the request as `hod@demo.slotwise.test`, and enable cancelled classes for that week as `student@demo.slotwise.test`. The seed itself deliberately publishes nothing. The demo semester ends 2026-12-18; later demos need a newly configured semester/allocation set.
+
+### Limitations, concepts and next step
+
+- No feature 004 acceptance criteria remain blocked or unverified locally. Full-day leave and Asia/Kolkata remain the agreed demo defaults; past leave and approved-leave reversal are unsupported and explained. Template revisions touching leave-linked cancellations fail closed for later recovery review. Recommendations/coverage counts, replacement publication, delivery accounting and notifications UI remain later features; approval does not claim recovery or delivery.
+- Existing ESLint 9 support/deprecation limitation and pg concurrency deprecation warning remain inherited; checks pass. No hosting/deployment or live university records were introduced.
+- React/Next.js concepts demonstrated: App Router protected Server Components, minimal serializable scoped view models, controlled Client Components, `useState`/`useRef`/`useTransition`, Server Actions, URL-selected details, route revalidation, loading/error boundaries and server authorization independent of navigation. Database status versions, schedule revisions and idempotency keys address different concurrency concerns.
+- Shared context updated: `architecture.md` (leave boundary and guards), `tech.md` (migration/defaults and no new dependencies), `README.md` (demo/checks/concepts), and this progress record. Shared policies/specification were not rewritten.
+- Next recommended feature: **005 explainable resolution engine**, only when requested.
+
+
+## Follow-up verification — 2026-11-14
+
+**Status:** all implemented features 000–004 pass the final local checks below. Two previously uncovered feature 004 edge cases were reproduced with failing regression tests, fixed, and reverified. No later feature was implemented.
+
+### Findings and fixes
+
+- A prospective timetable starting Tuesday could move a Monday class that leave approval had cancelled earlier in the same week. The original guard compared occurrence dates only with the effective date, allowing the stable obligation to be recreated outside the leave date through generic template publication. `src/server/services/timetable.ts` now checks the stable obligation IDs of proposed classes against all leave-linked cancellations. Both preview and publication reject this path, retaining the cancellation, reservations, obligation and revision unchanged. `tests/integration/leave.test.ts` adds this boundary regression; it failed before the fix and passes afterward.
+- Recomputing an impact preview after an external schedule change could return a newer revision than the still-rendered page. The UI compared revisions for inequality and falsely labelled the newly recomputed preview stale. `src/features/leave/components.tsx` now marks only older previews stale. `tests/e2e/leave.spec.ts` reproduces direct recomputation without an intervening page refresh; it failed before the fix and passes afterward. Existing tests still prove that genuinely older previews are marked stale after refreshing the page.
+- `context/architecture.md` records obligation-based boundary protection and monotonic preview freshness. All earlier user changes were preserved. No schema or dependency change was needed for these fixes.
+
+### Commands and actual final results
+
+Used Node 24.22.3 with `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run db:validate` | Passed; valid Prisma schema. |
+| `npm run db:check` | Passed; PostgreSQL connectivity through Prisma. |
+| `npx prisma migrate status` | Passed; persistent local database has all five migrations and is up to date. |
+| `npm run db:test:migrate` | Passed; isolated test database has no pending migrations. No reset was run. |
+| `npm run typecheck` | Passed after both fixes. |
+| `npm run lint` | Passed after both fixes, zero warnings. |
+| `npm test` | Passed after both fixes: **28 tests / 6 files**. |
+| `npm run test:integration` | Passed after the scheduling fix: **50/50**, including authorization, actual constraints, rollback, concurrency and the new midweek regression. |
+| `npm run build` | Passed after both fixes; production Webpack build includes all implemented routes. |
+| `npm run check:client-bundle` | Passed after both fixes; **32** client bundles checked for Prisma, database URLs and configured secrets. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | Passed after both fixes: **48/48**, across authentication, foundation, master data, timetable and leave. Includes nine leave tests, separate-user approval, privacy, network errors, pending/stale feedback, keyboard, reduced motion, axe, 320/390/768/1440px layouts and 200% layout scaling. |
+| `git diff --check` | Passed. |
+
+All six feature 004 acceptance criteria remain verified. No new failing checks remain. The inherited unsupported ESLint 9 toolchain and pg concurrency deprecation warning remain documented maintenance limitations; neither caused these checks to fail. The rollback test intentionally injects a late database failure and logs a safe failure before proving complete rollback; that is an expected passing test. No deployment or exhaustive assistive-technology testing is claimed.
+
+Demo remains: publish future classes as coordinator, preview and submit leave as faculty, approve as a different HoD, inspect cancelled/pending-delivery classes as the student. The additional fixes demonstrate stable domain identity across scheduling boundaries and the distinction between React page props and a fresh Server Action result. Stop here; feature 005 remains next only on request.
+
+
+## Live development recovery — 2026-11-14
+
+**Status:** fixed and verified on the actual development app at `http://127.0.0.1:3000/leave`.
+
+- User screenshots exposed a gap in the previous handoff: an already-running development process retained the pre-leave Prisma client in `globalThis`. The new service attempted `leaveRequest.findMany` on a missing model delegate. Fresh production-test processes passed, and the earlier anonymous HTTP check only verified the login redirect; neither established that the existing signed-in development page worked.
+- Reproduced by signing in with the existing synthetic faculty account on port 3000; the page displayed **Workspace unavailable**. No credentials were printed or changed. Restarted the verified SlotWise development process on the same port using Node 24, preserving the database and session secret.
+- `src/server/db.ts` now tags its cached client with the generated Prisma constructor reference. Development HMR replaces legacy untagged or regenerated clients and closes the retired pool; ordinary hot reloads reuse the current pool, and production cache reuse remains unchanged. The initial attempted `instanceof` guard was discarded after a real-client check showed that Prisma returns a proxy; the final implementation compares the recorded constructor reference instead.
+- Added `tests/unit/db.test.ts` (four cases: current reuse, legacy cache, regenerated constructor, production reuse) and `tests/integration/db-cache.test.ts` (real Prisma proxy reuse/replacement against the isolated test database). README and tech.md explain regeneration, migrations, cache recovery and restarting a stale development process. No dependency, schema, policy or credential change was made.
+- Actual live verification used a separate Chrome session and the existing demo faculty login: authenticated `/leave` rendered its request form and preview controls with no workspace/runtime error. Ran `npm run db:generate` while the server stayed running and verified authenticated `/leave` again without another restart. After the final build/type generation, verified **Preview impact** completed and a full page reload still rendered the leave workspace. This check was read-only and submitted no leave request. The development server is left running for the user's Safari refresh.
+
+Final checks with Node 24.22.3:
+
+| Command | Actual result |
+| --- | --- |
+| `npm test` | **32/32** across 7 files. |
+| `npm run test:integration` | **51/51**, including the real-client development cache regression. |
+| `npm run typecheck` | Passed with the final cache implementation and integration-test typing. |
+| `npm run lint` | Passed. |
+| `npm run build` | Passed after correcting test-only environment typing; Webpack production build complete. |
+| `npm run check:client-bundle` | Passed; 32 bundles checked. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | **48/48** passed after the cache fix. |
+| Live port-3000 browser check | Signed-in page, read-only impact preview and reload passed, with no workspace/runtime error; also passed after client regeneration without restarting. |
+| `git diff --check` | Passed. |
+
+No new unfinished product criteria remain from this incident. Inherited ESLint support and pg deprecation maintenance notes still apply. Relevant Next.js concept: hot reload preserves process globals, so a regenerated database client needs explicit cache invalidation; fresh-process test success must be supplemented by checking the actual long-running development app. Feature 005 remains outside this request.

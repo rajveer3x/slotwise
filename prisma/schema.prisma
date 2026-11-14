@@ -40,6 +40,7 @@ model Department {
   reservations ResourceReservation[]
   scheduleReceipts MutationReceipt[]
   auditEvents AuditEvent[]
+  leaveRequests LeaveRequest[]
   notifications Notification[]
 
 }
@@ -56,6 +57,7 @@ model User {
   faculty Faculty?
   memberships SectionMembership[]
   notifications Notification[]
+  reviewedLeave LeaveRequest[] @relation("LeaveReviewer")
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -81,6 +83,7 @@ model Semester {
   sections Section[]
   allocations CourseAllocation[]
   timetableVersions TimetableVersion[]
+  leaveRequests LeaveRequest[]
   @@unique([departmentId, code])
   @@unique([id, departmentId])
   @@index([departmentId, archived])
@@ -102,6 +105,7 @@ model Holiday {
 }
 
 model Faculty {
+  leaveRequests LeaveRequest[]
   occurrences ClassOccurrence[]
   id String @id @default(cuid())
   departmentId String
@@ -352,6 +356,8 @@ model ClassOccurrence {
   replaces ClassOccurrence? @relation("Replacement", fields: [replacesId], references: [id], onDelete: Restrict)
   replacement ClassOccurrence? @relation("Replacement")
   reservations ResourceReservation[]
+  leaveRequestId String?
+  leaveRequest LeaveRequest? @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict)
   @@unique([entryId, localDate])
   @@unique([id, departmentId])
   @@index([departmentId, startAt, schedulingStatus])
@@ -408,4 +414,35 @@ model MasterMutationReceipt {
   fingerprint String
   recordId String
   @@index([departmentId])
+}
+
+
+enum LeaveStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+model LeaveRequest {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  facultyId String
+  faculty Faculty @relation(fields: [facultyId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  semesterId String
+  semester Semester @relation(fields: [semesterId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  startDate String @db.VarChar(10)
+  endDate String @db.VarChar(10)
+  privateReason String
+  status LeaveStatus @default(SUBMITTED)
+  version Int @default(1)
+  reviewerId String?
+  reviewer User? @relation("LeaveReviewer", fields: [reviewerId, departmentId], references: [id, departmentId], onDelete: Restrict)
+  rejectionReason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  occurrences ClassOccurrence[]
+  @@unique([id, departmentId])
+  @@index([departmentId, facultyId, startDate, endDate])
+  @@index([departmentId, status, createdAt])
 }

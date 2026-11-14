@@ -1,6 +1,6 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–002** provide the application foundation, real local credential authentication, five role dashboards, scoped master-data CRUD, synthetic teaching fixtures and admin account-access controls. Timetables and leave workflows remain planned.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–004** provide the application foundation, credential authentication, role-scoped master data, manual dated timetable publication, and leave requests with read-only impact previews and transactional HoD decisions.
 
 ## Run locally
 
@@ -38,6 +38,8 @@ All use the password you supplied in `DEMO_SEED_PASSWORD` at their first creatio
 
 PostgreSQL listens on `127.0.0.1:5433`; data persists in Docker's volume. Change both password placeholders in `.env` before the first database start if desired. URL-encode punctuation in `DATABASE_URL`. Changing the file does not change credentials inside an existing database volume. `docker compose stop db` stops the service; `docker compose down` preserves its volume. Do not add `--volumes` unless you intend to erase local data.
 
+After changing the Prisma schema, run `npm run db:generate` and apply its migration. Restart `npm run dev` if an existing development process still reports an old client or missing model; browser refresh alone cannot replace a process cache.
+
 `db:migrate` applies checked-in migrations without resetting data. Feature 001 adds Department, User, Role, a unique normalized email constraint and the department foreign key. Feature 002 adds semesters/holidays, faculty/availability, courses/qualifications, sections/memberships, rooms, teaching slots, allocations and mutation receipts. Composite foreign keys enforce department ownership. The seed creates two Computing sections, six faculty profiles, four courses, three rooms including a lab, a semester, memberships and their linked teaching configuration; Design contains a smaller isolation fixture. All capacities, workload limits and identities are project-authored demo examples. Reruns preserve existing records and credentials without resetting data.
 
 ## Test the feature manually
@@ -66,6 +68,12 @@ Choose **Preview publication**, review every dated Before/After change and recip
 
 The existing demo semester ends on 18 December 2026. After that date, configure a new semester and allocations in Master data; the seed does not reset dates or overwrite edits. Tests use independently authored future fixtures, not a seeded published timetable. Notification and audit records are stored at publication; their full viewers remain later features.
 
+## Leave demo
+
+First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
+
+Sign out and sign in separately as `hod@demo.slotwise.test`. Open the pending request, review current impact and approve, or reject with a reason. Approval rechecks the current schedule, cancels future classes and releases reservations atomically while retaining obligations and pending delivery. As the student, open the relevant timetable week and enable **Include cancelled classes** to inspect cancellation without private leave reasons. Owners can withdraw pending requests. Zero-class leave is allowed; self-approval, past/overlapping dates and reopening closed requests are rejected. Approved leave reversal and recovery recommendations remain later work.
+
 ## Checks
 
 With Node 24 selected:
@@ -92,7 +100,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run test:e2e
 
 Browser tests use installed Google Chrome, start a production server on port 3100 with an ephemeral auth secret and the isolated database, then stop the server. Two workers bound native Argon2 memory and browser load. Alternatively install Chromium with `npx playwright install chromium` and omit `PLAYWRIGHT_CHANNEL=chrome`. The Chromium download was not verified locally.
 
-Tests create their own uniquely scoped synthetic departments, users and teaching records and remove only those fixtures. Seed-rerun checks use a unique test namespace. They never reset a database. An interrupted process may leave test fixtures in the isolated database; test reruns use new IDs. Screenshots and failure traces go under ignored `test-results/`. Coverage includes auth flows; direct unauthorized queries/mutations; all master-data entities; scoped foreign keys; validation and duplicate feedback; archive/restore; seed reruns and production refusal; stale edits; concurrent writes, revocation and request retries; keyboard use; responsive reflow and automated WCAG scans. Timetable checks additionally cover actual PostgreSQL exclusion constraints, simultaneous publication/master-data edits, rollback, holiday exclusion, historical identity, drag and keyboard repair, and scoped student reads. CSS 200% scaling and axe checks do not establish exhaustive accessibility or screen-reader testing.
+Tests create their own uniquely scoped synthetic departments, users and teaching records and remove only those fixtures. Seed-rerun checks use a unique test namespace. They never reset a database. An interrupted process may leave test fixtures in the isolated database; test reruns use new IDs. Screenshots and failure traces go under ignored `test-results/`. Coverage includes auth flows; direct unauthorized queries/mutations; all master-data entities; scoped foreign keys; validation and duplicate feedback; archive/restore; seed reruns and production refusal; stale edits; concurrent writes, revocation and request retries; keyboard use; responsive reflow and automated WCAG scans. Timetable checks additionally cover actual PostgreSQL exclusion constraints, simultaneous publication/master-data edits, rollback, holiday exclusion, historical identity, drag and keyboard repair, and scoped student reads. Leave checks cover inclusive local dates, zero impact, changed schedules, competing decisions/publication, request retries, rollback, privacy, stale refresh and separate-user approval. CSS 200% scaling and axe checks do not establish exhaustive accessibility or screen-reader testing.
 
 The single-process in-memory limiter is suitable only for this local demo; use a shared atomic limiter before a multi-instance deployment. JWT sessions expire after eight hours and carry identity only. Active status, role and department come from the database on protected reads and inside access-write transactions. Logout clears the current browser cookie; there is no durable session registry or global per-token revocation service. HTTP-only/SameSite=Lax auth cookies use Secure on HTTPS and permit local loopback HTTP.
 
@@ -100,11 +108,12 @@ Actual check results and the existing ESLint 9 support limitation are in [progre
 
 ## React and Next.js concepts to explain
 
-- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin` and `/timetable`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
-- **Server Components:** dashboard/admin/timetable pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
+- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable` and `/leave`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
+- **Server Components:** dashboard/admin/timetable/leave pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
 - **Client Components/hooks:** login and logout use React state for pending/error feedback; the menu uses refs and a native modal dialog. Account forms use React 19 `useActionState`.
 - **Server Actions:** the account-access action validates form input, calls the authorization service, commits the database transaction and revalidates `/admin/accounts`. Master-data actions revalidate `/admin`, use Zod schemas, version checks and transactionally stored retry receipts. Stale state produces a refresh message.
 - **Scheduling state:** pure TypeScript functions validate immutable placement snapshots. The editor uses controlled state, refs and `useTransition`; Server Actions revalidate and transact independently of the preview. Draft versions, schedule revisions and idempotency receipts solve different concurrency problems.
+- **Leave state:** request status/version and schedule revision serve different purposes. A preview is a read-only snapshot; a HoD decision authorizes a transaction that re-queries dated occurrences. Controlled form state survives errors/refresh; the server independently checks identity, ownership and status.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 
@@ -122,5 +131,5 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 003; later features require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 004; later features require a separate request.
 # slotwise

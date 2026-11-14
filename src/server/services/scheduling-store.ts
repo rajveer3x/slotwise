@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
-import { validatePlacements, weekday, weekOf, instant, type SchedulingData, type Placement } from "@/domain/scheduling/timetable";
+import { localDate, validatePlacements, weekday, weekOf, instant, type SchedulingData, type Placement } from "@/domain/scheduling/timetable";
 export class ScheduleError extends Error {
   constructor(public code: string, message: string, public conflicts: { rule: string; seriesId: string; message: string }[] = []) { super(message); }
 }
@@ -31,9 +31,12 @@ export function validateDated(rows: (Placement & { localDate: string })[], data:
 // Called inside the existing actor + department-locked master-data transaction.
 // Invalidating writes roll back; harmless changes still invalidate open previews.
 export async function guardPublishedSchedule(tx: Tx, departmentId: string) {
+  const liveLeave = await tx.leaveRequest.findMany({ where: { departmentId, status: { in: ["SUBMITTED", "APPROVED"] } }, include: { semester: true } });
+  if (liveLeave.some(r => r.endDate >= localDate() && (r.semester.archived || r.startDate < r.semester.startDate || r.endDate > r.semester.endDate))) throw new ScheduleError("CONFLICT", "This edit would invalidate pending or approved leave. Keep its semester and date boundaries available.");
   const now = new Date();
   const future = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", endAt: { gt: now } }, include: occurrenceInclude });
   if (!future.length) return;
+  await guardApprovedAbsence(tx, departmentId, future.filter(o => o.startAt > now && o.deliveryStatus === "PENDING"));
   const data = await schedulingData(tx, departmentId);
   const holidays = await tx.holiday.findMany({ where: { departmentId, archived: false } });
   for (const o of future) {
@@ -46,4 +49,11 @@ export async function guardPublishedSchedule(tx: Tx, departmentId: string) {
   const rows = await tx.classOccurrence.findMany({ where: { departmentId, schedulingStatus: "ACTIVE", localDate: { gte: weekOf(first) } }, include: occurrenceInclude });
   const conflicts = validateDated(rows.map(o => ({ ...asPlacement(o), localDate: o.localDate })), data);
   if (conflicts.length) throw new ScheduleError("CONFLICT", `This edit would invalidate the published schedule: ${conflicts[0].message}`, conflicts);
+}
+
+// Shared scheduling guard: pending leave is provisional; approved absence is hard.
+export async function guardApprovedAbsence(tx: Tx, departmentId: string, rows: { facultyId: string; localDate: string }[]) {
+  if (!rows.length) return;
+  const leaves = await tx.leaveRequest.findMany({ where: { departmentId, status: "APPROVED", facultyId: { in: [...new Set(rows.map(r => r.facultyId))] } }, select: { facultyId: true, startDate: true, endDate: true } });
+  if (rows.some(r => leaves.some(l => l.facultyId === r.facultyId && l.startDate <= r.localDate && l.endDate >= r.localDate))) throw new ScheduleError("CONFLICT", "A teacher has approved leave on a proposed class date. Review leave recovery before publishing.");
 }

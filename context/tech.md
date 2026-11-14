@@ -120,3 +120,16 @@ Consult the documentation matching installed versions when implementing APIs; th
 - The institution-time conversion is intentionally Asia/Kolkata; unsupported department timezones fail explicitly. No timezone package, solver, AI integration, background worker or external messaging was added. Availability covers adjacent intervals; labs require at least two contiguous configured slots.
 - The persistent local database and isolated test database receive migration `20261113010000_timetable`. Existing demo records are preserved; no weekly timetable is generated or automatically published. Tests use separate synthetic 2099 semesters to avoid wall-clock timing flakiness.
 - Some Prisma relation reads emit the installed pg driver's concurrency deprecation warning; checks pass with the installed pg 8 version. Scheduling snapshot queries themselves are sequential. This warning is a future driver-upgrade compatibility consideration, not a failed transaction in the recorded checks.
+
+
+## Feature 004 leave decisions
+
+- No dependency was added. `/leave` uses Server Component reads, controlled React forms, `useTransition`, ref-based duplicate protection and retained retry UUIDs. Server Actions revalidate `/leave`, `/timetable` and `/dashboard` only after committed mutations; impact previews write nothing. Browser refresh detects changed semester revisions without discarding request fields.
+- Incremental migration `20261114000000_leave` adds typed LeaveStatus/LeaveRequest, scoped foreign keys, decision/date checks, and an optional leave link on ClassOccurrence. It reuses feature 003's `btree_gist` extension for inclusive local-date exclusion of overlapping pending/approved leave; `make_date` expressions keep the index immutable. Applied to both local databases without resets.
+- Request private reasons are optional, capped at 2,000 characters; rejection requires a nonempty decision reason. Both are returned only to the owner/departmental HoD. Audit payloads contain safe status/date/occurrence/revision data, never either reason. Scheduling MutationReceipt is reused with a feature-scoped payload fingerprint.
+- Synthetic tests use unique isolated departments and 2099 dated timetables, plus controlled same-day/boundary records; no leave requests or published schedules were added to the persistent demo seed. Approved leave cancellation is linked for later resolution work. No candidate counts, recovery engine, notifications UI or reversal workflow was added.
+
+
+## Development Prisma cache recovery
+
+`server/db.ts` retains one client across ordinary hot reloads and records the generated Prisma constructor with it. In development, a regenerated constructor (or a legacy untagged cache) retires the old client/pool and creates a current client. Production cache reuse is unchanged. Compare the recorded constructor reference rather than `instanceof`: the installed Prisma client returns a proxy that does not reliably pass that test. This avoids missing model delegates after a running development server survives a schema addition. Schema regeneration still does not apply database migrations; use the explicit database scripts. Restart the development server if it retained stale compiled modules.
