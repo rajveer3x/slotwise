@@ -29,6 +29,7 @@ export async function timetableFixture(db: PrismaClient, passwordHash = "synthet
 }
 export async function cleanupTimetable(db: PrismaClient, departmentId: string) {
   const where = { departmentId };
+  await db.substitutionRequest.deleteMany({ where }); await db.saturdayException.deleteMany({ where });
   await db.resolutionItem.deleteMany({ where }); await db.resolutionPlan.deleteMany({ where });
   await db.notification.deleteMany({ where }); await db.auditEvent.deleteMany({ where }); await db.mutationReceipt.deleteMany({ where }); await db.resourceReservation.deleteMany({ where });
   await db.classOccurrence.updateMany({ where, data: { replacesId: null } }); await db.classOccurrence.deleteMany({ where }); await db.leaveRequest.deleteMany({ where }); await db.teachingObligation.deleteMany({ where }); await db.timetableEntry.deleteMany({ where }); await db.timetableVersion.deleteMany({ where });

@@ -1,6 +1,6 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–005** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, and explainable draft leave resolutions.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–006** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, explainable draft leave resolutions, authorized cover responses and exact Saturday approvals.
 
 ## Run locally
 
@@ -48,7 +48,7 @@ After changing the Prisma schema, run `npm run db:generate` and apply its migrat
 2. Sign in as student. Visit `/admin` or `/admin/accounts` directly: access is denied. Navigation has no account-administration link.
 3. In a separate browser profile, sign in as admin. Open **Account access** and revoke the faculty account. Reload the faculty dashboard in its original profile: it returns to login. Reactivate the account from admin and sign in again.
 4. Submit an incorrect password five times for one email, then the correct one. Authentication still fails with the same generic message until that account's 15-minute window expires. Successful attempts also count toward the five-attempt window. A separate process-wide limit admits 100 attempts per minute. Restarting the server clears these local demo counters.
-5. On a phone-sized viewport, open the Menu with the keyboard, follow Dashboard, and use Escape to close the drawer. Focus returns to Menu. The dashboard explains that timetable/leave workflows are still pending.
+5. On a phone-sized viewport, open the Menu with the keyboard, follow Dashboard, and use Escape to close the drawer. Focus returns to Menu. The dashboard shows scoped schedule and leave summaries.
 
 6. Sign in as coordinator and open **Master data** (`/admin`). Use **Rooms** to create `DEMO-NEW`, choose a type and positive capacity; reload to verify persistence. Repeat its code to see a server validation error with retained input. Search for the room, edit it, or expand Archive to read the dependency rules. Include archived records to restore it.
 7. Open **Allocations**. Choose a semester, a section in that semester, a course and an explicitly qualified faculty member; enter weekly periods and required semester contact minutes separately. Computing seed allocations already cover all four courses for both sections, so create a new qualified course/section combination first to demonstrate a new allocation. No timetable is created by saving an allocation.
@@ -72,7 +72,7 @@ The existing demo semester ends on 18 December 2026. After that date, configure 
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
 
-Sign out and sign in separately as `hod@demo.slotwise.test`. Open the pending request, review current impact and approve, or reject with a reason. Approval rechecks the current schedule, cancels future classes and releases reservations atomically while retaining obligations and pending delivery. As the student, open the relevant timetable week and enable **Include cancelled classes** to inspect cancellation without private leave reasons. Owners can withdraw pending requests. Zero-class leave is allowed; self-approval, past/overlapping dates and reopening closed requests are rejected. Approved leave reversal and recovery recommendations remain later work.
+Sign out and sign in separately as `hod@demo.slotwise.test`. Open the pending request, review current impact and approve, or reject with a reason. Approval rechecks the current schedule, cancels future classes and releases reservations atomically while retaining obligations and pending delivery. As the student, open the relevant timetable week and enable **Include cancelled classes** to inspect cancellation without private leave reasons. Owners can withdraw pending requests. Zero-class leave is allowed; self-approval, past/overlapping dates and reopening closed requests are rejected. Recovery recommendations are in Resolutions; approved leave reversal remains outside the MVP.
 
 ## Checks
 
@@ -110,19 +110,30 @@ Actual check results and the existing ESLint 9 support limitation are in [progre
 
 After publishing a future timetable, request leave as faculty and approve it as a different HoD. As `coordinator@demo.slotwise.test`, open **Resolutions**, select approved leave and inspect the first viable tier. Expand score/eligibility and rejected alternatives; select a candidate, inspect how later classes change, and save/reload your own draft. Rejections require reasons. Recompute after a stale schedule or draft warning. Faculty **Preview impact** also shows provisional greedy coverage estimates without naming other teachers.
 
-The engine searches Substitute → Swap → Weekday → Online → Saturday. Makeups use the 14 days following the original date, bounded by semester end/current time; Saturday requires configured slots/availability and a later HoD exception. Online is disabled by default and never allowed for labs. A search limit reports incomplete results; no feasible option leaves the class unresolved. Demo weights/limits live in `src/domain/resolution/engine.ts`; they are not university policy.
+The engine searches Substitute → Swap → Weekday → Online → Saturday. Makeups use the 14 days following the original date, bounded by semester end/current time; Saturday requires configured slots/availability and an exact HoD exception. Online is disabled by default and never allowed for labs. A search limit reports incomplete results; no feasible option leaves the class unresolved. Demo weights/limits live in `src/domain/resolution/engine.ts`; they are not university policy.
 
-Drafts reserve nothing and never publish. Cover invitations/responses and Saturday approval are feature 006; recovery preview/publication is feature 007. Confirmed-cover counts are currently zero because no delivery records exist yet. The persistent seed publishes no schedule or resolution; tests use project-authored 2099 fixtures in the isolated database. The current demo semester ends 2026-12-18.
+Drafts reserve nothing and never publish. Cover invitations/responses and Saturday approval are implemented in feature 006; recovery preview/publication remains feature 007. Confirmed-cover counts are currently zero because no delivery records exist yet. The persistent seed publishes no schedule or resolution; tests use project-authored 2099 fixtures in the isolated database. The current demo semester ends 2026-12-18.
+
+## Cover and Saturday demo (006)
+
+As coordinator, select a valid substitute on **Resolutions**, save the exact candidate and choose **Send cover invitation**. The response window defaults to 24 hours, accepts 1–168 whole hours as a demo setting, and is capped by class start. In another browser profile, sign in as the invited faculty and open **Cover & exceptions** (`/cover-requests`). Review the course, section, room, local interval and deadline; accept or decline. Another user cannot respond on their behalf. **Refresh responses** checks current server time and eligibility; an open stale page cannot extend the deadline. No background worker is required.
+
+After decline or expiry, recompute as coordinator and choose the next faculty or tier. Response history is retained, and these exact declined/expired candidates cannot be restored by clearing coordinator rejections. Saved candidate edits cancel live consent; changing away and back still requires a new invitation. Accepting reserves nothing and never assigns teaching. Coordinator cancellation is also available in Cover & exceptions.
+
+For Saturday, configure Saturday slots and original-faculty availability in Master data. Earlier feasible candidates must first be exhausted or explicitly rejected with reasons. Select/save the resulting Saturday candidate, enter a request reason and choose **Request HoD exception**. A different active departmental HoD reviews the exact candidate and attached earlier-tier explanations, then approves or rejects with a decision reason. A HoD cannot approve their own leave exception or their own request. Missing eligible approvers are reported explicitly. Candidate edits require new approval.
+
+Invitation/response/expiry/cancellation and exception actions record transactional audit events and persisted in-app updates for involved staff. `/cover-requests` shows only your scoped records and your latest 30 recovery updates. Reads derive expiry immediately; a subsequent authorized write materializes expiry history. There is no external delivery, live push or general notification/acknowledgement center yet. Recovery publication remains feature 007, and delivered minutes remain feature 008. All demonstration records are synthetic; automated tests create isolated 2099 scenarios without publishing persistent seed schedules.
 
 ## React and Next.js concepts to explain
 
-- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave` and `/resolutions`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
-- **Server Components:** dashboard/admin/timetable/leave/resolution pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
+- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave`, `/resolutions` and `/cover-requests`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
+- **Server Components:** dashboard/admin/timetable/leave/resolution/cover pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
 - **Client Components/hooks:** login and logout use React state for pending/error feedback; the menu uses refs and a native modal dialog. Account forms use React 19 `useActionState`.
 - **Server Actions:** the account-access action validates form input, calls the authorization service, commits the database transaction and revalidates `/admin/accounts`. Master-data actions revalidate `/admin`, use Zod schemas, version checks and transactionally stored retry receipts. Stale state produces a refresh message.
 - **Scheduling state:** pure TypeScript functions validate immutable placement snapshots. The editor uses controlled state, refs and `useTransition`; Server Actions revalidate and transact independently of the preview. Draft versions, schedule revisions and idempotency receipts solve different concurrency problems.
 - **Leave state:** request status/version and schedule revision serve different purposes. A preview is a read-only snapshot; a HoD decision authorizes a transaction that re-queries dated occurrences. Controlled form state survives errors/refresh; the server independently checks identity, ownership and status.
 - **Resolution state:** pure deterministic rules consume an immutable resource snapshot; controlled Client Components hold draft choices and use Server Actions to recompute the batch. Database drafts have separate edit versions and capture policy/revisions. Selection, acceptance, publication and delivery are distinct states.
+- **Response state:** Server Components resolve scoped invitations and server deadlines; controlled Client Components retain reasons and retry keys with `useTransition`/refs. Server Actions independently authorize, revalidate exact candidates under the department lock and refresh routes after commit. Candidate fingerprints, partial unique indexes and retry receipts prevent different forms of duplicate consent.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 
@@ -140,5 +151,5 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 005; later features require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 006; later features require a separate request.
 # slotwise

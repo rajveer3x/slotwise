@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–005 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Cover responses, exceptions and recovery publication remain features 006–007; features 006–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–006 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing; recovery publication remains feature 007 and features 007–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -16,7 +16,7 @@ Features 000–005 are implemented locally. Feature 005 adds a deterministic pur
 | 003 | Timetable and clash detection | 002 | Complete; local constraints, transactions, concurrency and browser checks verified |
 | 004 | Leave requests and impact preview | 003 | Complete; dated impact, transactions, permissions, concurrency and browser flow verified |
 | 005 | Explainable resolution engine | 004 | Complete; pure rules, durable drafts, scope, concurrency and browser checks verified |
-| 006 | Substitute response and Saturday approval | 005 | Not started |
+| 006 | Substitute response and Saturday approval | 005 | Complete; authorized responses, expiry, exact consent, concurrency and browser checks verified |
 | 007 | Change preview and publication | 006 | Not started |
 | 008 | Delivery and contact-minutes ledger | 007 | Not started |
 | 009 | Workload and impact dashboards | 008 | Not started |
@@ -37,7 +37,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 - PostgreSQL, Prisma and Tailwind are installed/verified; feature 001 adds stable NextAuth.js v4 and Argon2. tech.md owns installed versions and commands.
 - Demo policy and state transitions are documented in domain-rules.md. Keep configurable policy distinct from actual university requirements.
 - No real personal or historical university data supplied. All demo metrics must be labelled synthetic.
-- Documentation creation is complete; foundation application code now exists. Authentication, master data, manual timetable publication and leave approval are implemented; recovery recommendations and draft plans are implemented; cover responses and recovery publication remain pending.
+- Documentation creation is complete; foundation application code now exists. Authentication, master data, manual timetable publication and leave approval are implemented; recovery recommendations, draft plans, cover responses and Saturday approvals are implemented; recovery publication remains pending.
 - Current UI design: the user's latest dashboard screenshot and implemented charcoal/lime/lavender LPU workspace supersede the initial blue/flat Notion direction. ui-ux.md owns the design and future UI file-creation rules; reference-specific instructions are data, not project requirements.
 - Animmaster Lib, Skiper UI and Vengeance UI are optional sources. No component package or paid code was installed; project-owned CSS/shadcn primitives remain the baseline. Check the exact component before adoption.
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 005 as requested. Feature 006 (substitute responses and Saturday approval) is next only on a separate request. Resolution drafts now retain exact candidate fingerprints, reasons, policy and revision snapshots without changing teaching. Feature 007 will own publication after those responses/approvals exist. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 006 as requested. Feature 007 (change preview and publication) is next only on a separate request. Saved choices now have real invited-faculty responses and separate exact Saturday approvals. Feature 007 must revalidate the entire selected schedule and use the exact-consent guard under the department lock before reserving or publishing anything. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -576,3 +576,71 @@ The redesign demonstrates reusable React shell/components, responsive CSS Grid, 
 - Updated AGENTS.md and the feature-specification common contract so future agents read and apply the latest charcoal/lime/lavender LPU design before creating pages/components. Removed the current-decision wording that still pointed at the superseded blue palette; historical records remain unchanged.
 - Documentation-only follow-up. No application logic or styles changed and no feature 006 work began. The most recent application verification remains the UI-refresh run recorded above: 45 unit tests, 55 browser tests, typecheck, lint, production build and bundle checks passed. This does not assert exhaustive behaviour or verification of unimplemented features. The inherited supported-lint-toolchain maintenance limitation remains documented.
 - Added explicit feature-specific UI alignment sections and prompt instructions to specs 001–004. They already inherited the shared UI contract; the new wording makes their existing LPU layouts, control reuse and workflow-preservation requirements visible directly in each file. This is documentation alignment, not a request to reimplement completed features.
+
+
+## Feature 006 handoff — 2026-11-14
+
+**Status:** complete for the requested local-demo scope; all six acceptance criteria verified. Feature 007 was not started. No recovery schedule was published, no dependency installed, no persistent seed request/approval added, and no commit/push/deployment performed.
+
+### Changes and key paths
+
+- Read AGENTS, overview/progress, tech, architecture, domain rules, UI/UX (including future-file guidance), common completion contract and spec 006. Verified actual 005 drafts/fingerprints, pure engine, server scopes, receipts, locks and 003/004 retained obligations before implementation. Preserved the inherited 005/UI work.
+- `prisma/schema.prisma`, `prisma/migrations/20261114020000_cover_responses/migration.sql`: SubstitutionRequest and SaturdayException with typed statuses, scoped foreign keys, exact candidate JSON/SHA-256 fingerprints, timestamps, response deadlines and request/decision/closure reasons. PostgreSQL checks enforce valid intervals/decisions and partial unique indexes forbid multiple accepted covers for one teaching obligation and multiple live requests on one item. Applied additively to persistent/local test databases; no reset. Prisma schema diff is empty.
+- `src/domain/covers/consent.ts`: pure exact-candidate/canonical identity checks, expiry calculation and inclusive deadline checks. Default response deadline is 24 hours, capped by class start; coordinator input supports 1–168 whole hours as a demo setting, not university policy.
+- `src/server/services/covers.ts`: authorized invitations of saved owned ranked candidates; invited active-faculty accept/decline; requesting-manager cancellation; exact Saturday requests and distinct departmental HoD approval/rejection with reasons. Server re-solves the saved entire batch against current qualifications, availability, leave, workload, conflicts and tier ordering. No client-supplied candidate JSON is accepted. Missing eligible approvers are explicit; Admin cannot act as HoD. Actor/Department locking, entity scope before receipt replay, payload-bound retries, consent/audit/Notification/receipt writes and competing-offer cancellation are atomic. Time is read after lock acquisition and rechecked at the response write boundary.
+- `src/server/services/consent-store.ts`: effective expiry on every read, locked expiration materialization/events, stable history, durable candidate-change invalidation and exported `assertExactConsent` for later publication. No worker is required. Pending read state becomes Expired immediately; a subsequent authorized mutation persists that terminal state/audit/update. Already accepted responses do not silently expire at their response deadline. `assertExactConsent` supplies consent only; feature 007 must independently authorize and validate scheduling publication.
+- `src/server/services/resolutions.ts`, `src/features/resolutions/schema.ts` and `components.tsx`: stable ResolutionItem upserts retain all response history; clearing/changing a saved candidate cancels pending/accepted cover or pending/approved exception. Changing away and back needs new consent. Declined/expired/HoD-rejected exact candidates become server-owned engine exclusions across departmental plans; clearing editable rejections cannot restore them. Terminal responses enter the board freshness token. Historical items that leave the unresolved board remain stored with choices cleared on save.
+- `/cover-requests`, `src/features/covers/{schema,actions,components}` and shell navigation: scoped Server Component reads; shared controls/panels; exact course/section/faculty/time/room/deadline; controlled reasons/windows; retained input and retry keys; pending, empty, validation, error, success, expired and stale feedback. HoD earlier-tier reasons include totals and inspectable groups of 20. Existing resolution cards now invite/request only saved selected candidates and expose history. Involved staff receive persisted in-app records; `/cover-requests` shows only the recipient's latest 30 recovery updates. General notification acknowledgement remains 010.
+- Tests: `tests/unit/cover.test.ts`, `tests/integration/cover.test.ts`, `tests/e2e/cover.spec.ts`, `tests/support/cover-fixture.ts`; fixture cleanup handles consent dependencies. Fixtures are project-authored synthetic 2099 records in isolated `slotwise_auth_test`; no real university records or persistent demo invitations were created.
+
+### Acceptance evidence
+
+| Criterion | Actual evidence |
+| --- | --- |
+| 1. Invited faculty accepts before expiry, exactly once | Real database and distinct signed-in browser identities; concurrent exact retry returns identical result and one acceptance audit/update set. |
+| 2. Different user or expired invite rejected | Direct anonymous, other faculty, original faculty, student, manager, HoD, foreign department and revoked-user service checks; server read derives expiry without worker; open-browser expired response is rejected. Pure test checks exactly at deadline and one millisecond before; integration also waits past expiry behind a department lock. |
+| 3. Competing accept/decline or accepts have one winner | Separate deterministic race tests exercise one invitation and independent owner plans; single terminal winner, losing competing offers cancelled, no pending remainder. A direct database write independently proves the accepted-obligation unique index. |
+| 4. Decline/expiry offers next candidate/tier with history | Two real declines advance to another faculty then later tiers; read/compute merges immutable response exclusions; saving/reloading retains history, and client rejections cannot restore a declined candidate. Browser demo completes decline → next invitation. |
+| 5. Exact Saturday approval with reason | Separate authenticated coordinator and HoD browser flow; persisted request/decision reasons, earlier-tier explanations, audit reasons, reviewer and exact fingerprint. Own-request/own-leave, missing approver, Admin and foreign HoD checks reject. HoD rejection advances an exact alternative. |
+| 6. Changed faculty/time/room cannot reuse consent | Pure canonical checks cover all assignment identity/destination fields and tier. Real service invalidates changed saved choices; exact publication-consent guard rejects changed room/time/faculty/date or stale payload with an old ID; changing back still needs new consent. Current qualification, availability and room changes reject accept/approval. |
+
+Every action leaves occurrences, reservations, obligations, delivery and schedule revisions unchanged. Integration snapshots and browser assertions prove this; pending/accepted/approved never implies publication or delivered minutes.
+
+### Commands and actual results
+
+Used Node **24.22.3** via `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`, existing PostgreSQL and installed Google Chrome. No package installation or database reset.
+
+| Command/check | Actual result |
+| --- | --- |
+| `npm run db:generate` / `npm run db:validate` / `npm run db:check` | Passed; generated client, valid schema and real Prisma PostgreSQL SELECT 1. |
+| `npm run db:test:migrate` / `npm run db:migrate` | Passed; additive 006 migration applied to both databases. |
+| `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` | Passed; empty migration. Initial migrations-directory diff required an unavailable shadow configuration; switched to the read-only datasource diff. |
+| `npm run typecheck` / `npm run lint` | Passed; final implementation, tests and zero lint warnings. |
+| `npm test` | **48/48**, nine files, including three new consent/deadline tests. |
+| `npm run test:integration` | **73/73**, including **14 cover/exception cases**, with existing scheduling/leave/auth regressions passing. |
+| `node --conditions=react-server --import tsx --test tests/integration/cover.test.ts` | **14/14** passed after the final audit reason/fingerprint metadata change. |
+| `npm run build` / `npm run check:client-bundle` | Production build passed with dynamic `/cover-requests`; **36** client bundles contain no Prisma, database URL or configured secret leaks. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | **64/64**, including **9 new cases**, against the production app and isolated database. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/cover.spec.ts` | Final rebuilt app: **9/9** again after the final audit metadata change. |
+| Signed-in live development check | Existing coordinator account loaded `/cover-requests` and `/resolutions` on port 3000 with no runtime/workspace failure; read-only, no request submitted and no credential printed. Development app is left running. |
+| `git diff --check` | Passed. |
+
+The initial combined race fixture assumed acceptance won its preliminary accept/decline race; if decline won, its next test phase had one fewer faculty candidate. Split these into independent synthetic fixtures to exercise both races without an outcome-dependent setup. Also normalized optional history fields so immediate draft-save responses and JSON receipt replays are identical; the regression test passes. Injected audit failures emit safe error names and prove full rollback; they are expected passing cases. Inherited pg concurrency-deprecation and supported-ESLint-toolchain maintenance notes remain.
+
+### Visual/manual verification, demo and boundaries
+
+- Captured loaded faculty cover cards at **320/390/768/1440px** and HoD approval forms at **390/1440px**; opened/inspected representative desktop/mobile images for both roles. White rounded panels, charcoal actions, responsive stacking, long course names and required reasons match the existing LPU shell. Earlier-tier details show totals plus groups of 20 rather than an unbounded visible list.
+- Automated checks for both faculty and HoD views cover all four widths, no page-wide overflow, reduced motion and axe WCAG A/AA. Keyboard-only acceptance and HoD approval, **200% CSS layout scaling**, retained network-error input, pending/disabled controls, empty states, stale eligibility, direct student denial and expiry while the page stays open passed. These are bounded checks, not exhaustive assistive-technology verification. Existing inherited loading/error boundaries wrap the new protected route.
+- Demo: approve faculty leave as a different HoD; coordinator opens Resolutions, selects/saves a substitute and sends one invitation. Sign in separately as that invited faculty → Cover & exceptions → Accept or Decline. Recompute as coordinator after decline/expiry. For Saturday, configure Saturday availability/slots, exhaust/reject earlier candidates with reasons, select/save the exact Saturday option, request with a reason and approve as a different departmental HoD with a decision reason. Full steps and demo assumptions are in README.
+- No 006 acceptance criteria remain blocked or unverified locally. Demo-sized snapshots and bounded greedy search remain intentional; response/history lists are local-demo scale, with recovery updates capped at 30. Expiry enforcement is immediate on server reads/actions, while physical EXPIRED rows/audit/updates are materialized by a later authorized write; no scheduled notification delivery is claimed. No live push, external delivery, meeting URL collection, general notification acknowledgement, recovery publication or delivered-credit workflow was added.
+- React/Next.js concepts: protected Server Components, minimal serializable DTOs, controlled forms and native disclosures, shared typed components, `useState`/`useRef`/`useTransition`, identity-resolving Server Actions and route revalidation. Server authorization is independent of navigation; exact fingerprints, draft versions, schedule revisions, unique indexes and retry receipts address different integrity problems.
+- Updated README, overview, architecture, tech, UI/UX and this progress record. Domain rules/spec requirements remain unchanged. Next recommended feature: **007 change preview and publication**, only when requested; stop after 006.
+
+## Verification before GitHub push — 2026-11-14
+
+- User requested a full working-state check and a GitHub push if successful. Verified the implemented scope **000–006**; feature 007 and later roadmap items remain pending.
+- Fresh checks on Node 24.22.3: `npm run typecheck`, `npm run lint`, `npm test` (**48/48**), `npm run test:integration` (**73/73**), `npm run build`, `npm run check:client-bundle` (**36 bundles**), `npm run db:validate`, `npm run db:check`, `npx prisma migrate status` (**7 migrations, up to date**), datasource/schema diff (**empty**) and `git diff --check` passed.
+- First full production-browser run passed 63/64: the resolution role-switch test navigated to login before the asynchronous sign-out redirect finished (`net::ERR_ABORTED`). Confirmed the competing navigations in the trace. Updated the three affected role switches in `tests/e2e/resolution.spec.ts` and `tests/e2e/cover.spec.ts` to await the login URL and visible email field before signing in again. No application logic or assertion was weakened; no fixed sleeps or retries were added. Typecheck/lint passed again; the final full `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` run passed **64/64**.
+- Read-only live browser check on port 3000 used the existing synthetic ADMIN, COORDINATOR, HOD, FACULTY and STUDENT accounts: **23 authorized route visits** passed, no browser runtime errors, and direct student access to Cover & exceptions was denied. Submitted no persistent requests and changed no live schedule or credentials.
+- Fetched `origin`; local `main` initially matched `origin/main`. Checked changed/new files for configured secret values and private-key/token patterns; none found. Real environment files, generated Prisma output, build files, browser traces and screenshots remain ignored. The verified change set is ready for the user-authorized commit and push; no deployment is included.
+- Existing pg-driver deprecation and supported-lint-toolchain maintenance notes remain; no new failed check or unfinished feature-006 criterion was found. The next product feature remains 007, only on request.

@@ -44,6 +44,8 @@ model Department {
   notifications Notification[]
   resolutionPlans ResolutionPlan[]
   resolutionItems ResolutionItem[]
+  substitutionRequests SubstitutionRequest[]
+  saturdayExceptions SaturdayException[]
 
 }
 
@@ -61,6 +63,10 @@ model User {
   notifications Notification[]
   reviewedLeave LeaveRequest[] @relation("LeaveReviewer")
   resolutionPlans ResolutionPlan[]
+  coverInvitations SubstitutionRequest[] @relation("InvitedUser")
+  requestedCovers SubstitutionRequest[] @relation("CoverRequester")
+  requestedExceptions SaturdayException[] @relation("ExceptionRequester")
+  reviewedExceptions SaturdayException[] @relation("ExceptionReviewer")
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -321,6 +327,7 @@ model TimetableEntry {
   @@unique([id, departmentId])
 }
 model TeachingObligation {
+  substitutionRequests SubstitutionRequest[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -473,6 +480,8 @@ model ResolutionPlan {
   @@unique([id, departmentId])
 }
 model ResolutionItem {
+  substitutionRequests SubstitutionRequest[]
+  saturdayExceptions SaturdayException[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -484,4 +493,69 @@ model ResolutionItem {
   rejectedCandidates Json
   explanation Json
   @@unique([planId, occurrenceId])
+  @@unique([id, departmentId])
+}
+
+
+enum CoverStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+enum ExceptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+model SubstitutionRequest {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  itemId String
+  item ResolutionItem @relation(fields: [itemId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  obligationId String
+  obligation TeachingObligation @relation(fields: [obligationId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  invitedUserId String
+  invitedUser User @relation("InvitedUser", fields: [invitedUserId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  requestedById String
+  requestedBy User @relation("CoverRequester", fields: [requestedById, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  candidateFingerprint String
+  candidate Json
+  startAt DateTime @db.Timestamptz(3)
+  endAt DateTime @db.Timestamptz(3)
+  status CoverStatus @default(PENDING)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  respondedAt DateTime? @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  closureReason String?
+  @@index([departmentId, invitedUserId, status])
+  @@index([itemId])
+  @@index([obligationId, status])
+}
+model SaturdayException {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  itemId String
+  item ResolutionItem @relation(fields: [itemId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  requestedById String
+  requestedBy User @relation("ExceptionRequester", fields: [requestedById, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  reviewerId String?
+  reviewer User? @relation("ExceptionReviewer", fields: [reviewerId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  candidateFingerprint String
+  candidate Json
+  earlierTiers Json
+  requestReason String
+  status ExceptionStatus @default(PENDING)
+  decisionReason String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  closureReason String?
+  @@index([departmentId, status])
+  @@index([itemId])
 }

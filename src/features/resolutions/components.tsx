@@ -6,6 +6,7 @@ import { clockTime } from "@/domain/scheduling/timetable";
 import { rejectionLabels, tierNames, type Assignment, type Candidate, type Decisions } from "@/domain/resolution/engine";
 import type { ResolutionWorkspace } from "@/server/services/resolutions";
 import type { Board, ResolutionResult } from "./schema";
+import { RequestSelectedConsent, statusLabel } from "@/features/covers/components";
 import { resolutionAction } from "./actions";
 
 export function ResolutionWorkspaceView({ workspace: w }: { workspace: ResolutionWorkspace }) {
@@ -59,7 +60,7 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
     <h2 id="board-heading" className="text-xl font-semibold">Resolution board</h2>
     <p className="my-3">Draft only · {selectedCount} selected · {board.items.filter(i => !i.candidates.length).length} without a valid option · {board.items.length} affected classes</p>
     <p className="text-sm text-text-secondary">Schedule revision {board.revision} · Policy {board.policyVersion} · Draft version {board.planVersion}. Asia/Kolkata. Greedy batch order: original date, time, then stable class ID. This is not a global optimality proof.</p>
-    <p className="mt-2 text-sm text-text-secondary">No confirmed covers have been recorded. Selecting a substitute still requires acceptance; Saturday still requires HoD approval. Every affected class awaits publication.</p>
+    <p className="mt-2 text-sm text-text-secondary">Selecting a substitute requires its invited faculty’s acceptance; Saturday requires exact HoD approval. Responses reserve nothing. Every affected class awaits publication.</p>
     <div className="my-4 flex flex-wrap gap-3"><Button variant="secondary" disabled={pending} onClick={() => { requestId.current = null; run("compute"); }}>{pending ? "Working…" : "Recompute current resources"}</Button><Button disabled={pending || needsCompute || stale || !board.items.length} onClick={() => run("save")}>Save draft</Button></div>
     <p role="status" className={feedback?.ok ? "mb-4 text-success" : "mb-4 text-danger"}>{feedback?.message}</p>
     {stale && <p role="status" className="mb-4 text-warning">This draft is stale. Recompute and review retained choices before saving.</p>}
@@ -72,7 +73,8 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
         {item.unresolvedReason && <p role="status" className="my-3 text-warning">Unresolved · {item.unresolvedReason}</p>}
         {item.selectionError && <p role="status" className="my-3 text-danger">{item.selectionError}</p>}
         {decisions.selected[item.original.occurrenceId] && <Button variant="secondary" disabled={pending} onClick={() => choose()}>Clear selection</Button>}
-        <div className="mt-4 grid gap-4">{item.candidates.map((c, index) => <CandidateCard key={c.id} candidate={c} rank={index + 1} selected={item.selected?.id === c.id} pending={pending} board={board} choose={() => choose(c)} reject={reason => reject(c, reason)} />)}</div>
+        <div className="mt-4 grid gap-4">{item.candidates.map((c, index) => <CandidateCard key={c.id} candidate={c} rank={index + 1} selected={item.selected?.id === c.id} pending={pending} board={board} choose={() => choose(c)} reject={reason => reject(c, reason)} consent={item.selected?.id === c.id ? <RequestSelectedConsent board={board} leaveId={leaveId} candidate={c} disabled={pending || needsCompute || stale} onSuccess={() => { requestId.current = null; run("compute"); }} /> : undefined} />)}</div>
+        {!!board.history.filter(h => h.occurrenceId === item.original.occurrenceId).length && <details className="mt-4"><summary className="cursor-pointer py-3">Response and exception history</summary><ul className="grid gap-3">{board.history.filter(h => h.occurrenceId === item.original.occurrenceId).map(h => <li key={h.id}>{h.kind === "cover" ? "Cover" : "Saturday"} · {statusLabel[h.status]}{h.decisionReason && ` · ${h.decisionReason}`}{h.closedReason && ` · ${h.closedReason}`}</li>)}</ul><p className="mt-3 text-sm">Declined, expired and HoD-rejected candidates are excluded during recomputation; history survives draft edits.</p><Link className="inline-link" href="/cover-requests">Review invitations and exceptions</Link></details>}
         <details className="mt-5"><summary className="cursor-pointer py-3 font-medium">Rejected alternatives ({item.rejections.length}) and explanations</summary>
           {!item.rejections.length ? <p>No rejected alternatives in the searched tiers.</p> : <><ul className="grid gap-3">{Object.entries(item.rejections.reduce<Record<string, number>>((counts, r) => { for (const code of r.codes) counts[code] = (counts[code] ?? 0) + 1; return counts; }, {})).map(([code, count]) => <li key={code}>{rejectionLabels[code] ?? code}: {count}</li>)}</ul><p className="my-3 text-sm">Showing up to {rejectionLimit} alternatives; totals above include all searched rejections. Later tiers are not searched while an earlier tier is usable.</p><ul className="grid gap-3">{item.rejections.slice(0, rejectionLimit).map((r, index) => <li key={index} className="border-t border-border-subtle pt-2"><p className="font-medium">{tierNames[r.tier]}</p>{r.proposed && <AssignmentView a={r.proposed} board={board} />}<p className="text-sm">{r.codes.map(code => rejectionLabels[code] ?? code).join("; ")}{r.reason && ` · Reason: ${r.reason}`}</p></li>)}</ul>{rejectionLimit < item.rejections.length && <Button variant="secondary" disabled={pending} onClick={() => setRejectionLimit(n => n + 20)}>Show more rejected alternatives</Button>}</>}
         </details>
@@ -81,13 +83,14 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
     </div>}
   </section>;
 }
-function CandidateCard({ candidate: c, rank, selected, pending, board, choose, reject }: { candidate: Candidate; rank: number; selected: boolean; pending: boolean; board: Board; choose: () => void; reject: (reason: string) => void }) {
+function CandidateCard({ candidate: c, rank, selected, pending, board, choose, reject, consent }: { consent?: React.ReactNode; candidate: Candidate; rank: number; selected: boolean; pending: boolean; board: Board; choose: () => void; reject: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   return <article className="rounded-control border border-border-subtle p-4" aria-label={`Candidate ${rank}`}>
     <h4 className="font-semibold">{tierNames[c.tier]} · Option {rank}{selected ? " · Selected" : ""}</h4>{c.assignments.map(a => <AssignmentView key={a.occurrenceId} a={a} board={board} />)}
     <p className="mt-3"><strong>Why recommended:</strong> {c.why}</p>{c.requires && <p className="mt-2 text-warning">{c.requires}</p>}
     <details className="my-3"><summary className="cursor-pointer py-3">Score and eligibility details</summary><p>All hard constraints passed for every destination.</p>{c.contributions.length ? <><p>Integer score: {c.score}</p><ul>{c.contributions.map(x => <li key={x.reason}>{x.reason}: {x.value > 0 ? "+" : ""}{x.value}</li>)}</ul></> : <p>{c.tier === 1 ? "Rank: lower assigned/target ratio, then fewer confirmed covers this month, then stable faculty ID. Missing positive targets are excluded." : "Rank: earlier destination date/time, stable room and candidate IDs."}</p>}</details>
     <Button variant={selected ? "secondary" : "primary"} disabled={pending || selected} onClick={choose}>{selected ? "Selected for draft" : "Select candidate"}</Button>
+    {consent}
     <details className="mt-3"><summary className="cursor-pointer py-3">Reject this candidate with a reason</summary><form className="mt-2 grid gap-3" onSubmit={e => { e.preventDefault(); if (reason.trim()) reject(reason.trim()); }}><label>Rejection reason (required)<textarea className="input mt-2" required minLength={1} maxLength={500} rows={2} value={reason} disabled={pending} onChange={e => setReason(e.target.value)} /></label><Button variant="secondary" type="submit" disabled={pending || !reason.trim()}>Reject and recompute</Button></form></details>
   </article>;
 }
