@@ -44,6 +44,7 @@ Implement schema incrementally by feature. Add foreign keys, uniqueness and inde
 | View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration. FACULTY may view their own workload |
 | View private leave reasons | Requesting faculty and authorized HOD only |
 | Read notifications/acknowledge | Recipient only |
+| Read acknowledgement totals | ADMIN or department COORDINATOR |
 
 Scope checks apply to every query and mutation and do not rely on IDs supplied by the client. An ADMIN does not implicitly acquire HoD approval authority. For the demo, requests by a HOD require a different authorized HOD in the department; if none exists, show no eligible approver rather than self-approving. There is no public role-selection signup.
 
@@ -82,6 +83,10 @@ For weekday slots use a versioned integer score: +30 if it fills a section gap, 
 Plan states: DRAFT -> READY -> PUBLISHED or SUPERSEDED. Only fully valid, explicitly selected items may publish. For MVP publication is all-or-nothing for the selected subset; unselected unresolved items remain visible. Publishing a subset advances the revision and invalidates remaining old previews. Match accepted cover requests and Saturday approvals to the exact candidate fingerprint; a changed candidate needs a new response/approval.
 
 Core cover invites are coordinator-initiated with configurable expiry, default 24 hours capped by class start; skip requests that are already expired. Multiple accepts for one class cannot become multiple assignments. Acceptance rechecks timing and eligibility but does not reserve resources; publication rechecks again and may invalidate an accepted option if resources changed. Explain this distinction in the UI. The optional emergency feature adds short simultaneous-offer expiry.
+
+## Notifications
+
+A recovery publication records one notification per active recipient. The audience includes affected faculty on both sides of a change, students in affected sections with active memberships, and departmental coordinators, HoDs and administrators. The publication stores before/after assignment details and each recipient's affected obligations. The timetable link resolves the current active occurrence of that teaching obligation. A separate acknowledgement, unique per recipient and recovery publication, records that the user saw an update. Marking read does not acknowledge. Acknowledging also records the notification as read and has no effect on attendance, consent, delivery or contact minutes. Aggregate counts use the original recorded audience.
 
 ## Contact minutes and workload
 

@@ -56,6 +56,77 @@ test("coordinator previews and publishes with keyboard, student refreshes timeta
     expect(await db.teachingObligation.count({ where: { departmentId: f.departmentId } })).toBe(6);
   } finally { await context.close(); }
 });
+test("mobile inbox rolls back a failed optimistic read and records acknowledgement for the coordinator", async ({ page, browser }, testInfo) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 950 }, reducedMotion: "reduce" });
+  const student = await context.newPage();
+  try {
+    await login(student, f.student.email);
+    await student.getByRole("button", { name: "Menu", exact: true }).press("Enter");
+    await student.getByRole("dialog").getByRole("link", { name: "Notifications", exact: true }).press("Enter");
+    await expect(student.getByText("You have no in-app notifications yet.")).toBeVisible();
+
+    await login(page); await open(page); await selectSave(page); await preview(page);
+    await review(page).getByRole("button", { name: "Publish 1 changes", exact: true }).click();
+    await expect(review(page).getByRole("status").filter({ hasText: "Published 1 changes." })).toBeVisible();
+    await page.goto("/notifications");
+    const counts = page.getByRole("region", { name: "Department acknowledgements" });
+    await expect(counts).toContainText("0 of 5 acknowledged");
+
+    await student.getByRole("button", { name: "Refresh", exact: true }).press("Enter");
+    await expect(student.getByText("1 unread", { exact: true })).toBeVisible();
+    await expect(student.getByRole("heading", { name: "Department acknowledgements" })).toHaveCount(0);
+    const coordinatorNote = await db.notification.findFirstOrThrow({ where: { recipientId: f.coordinator.id } });
+    await student.goto(`/notifications?notice=${coordinatorNote.id}`);
+    await expect(student.getByText("This notification is unavailable for your account.")).toBeVisible();
+    await student.getByRole("link", { name: "Back to all updates" }).click();
+    const failPost = "**/notifications**";
+    let reached!: () => void, release!: () => void;
+    const started = new Promise<void>(r => { reached = r; });
+    const hold = new Promise<void>(r => { release = r; });
+    await student.route(failPost, async route => {
+      if (route.request().method() !== "POST") return route.continue();
+      reached(); await hold; await route.abort();
+    });
+    await student.getByRole("button", { name: "Mark as read", exact: true }).press("Enter");
+    await started;
+    try {
+      await expect(student.getByText("0 unread", { exact: true })).toBeVisible();
+      await expect(student.getByRole("button", { name: "Mark as read", exact: true })).toBeDisabled();
+    } finally { release(); }
+    await expect(student.getByRole("status").filter({ hasText: "Could not reach the server. Try again." })).toBeVisible();
+    await expect(student.getByText("1 unread", { exact: true })).toBeVisible();
+    await student.unroute(failPost);
+    await student.getByRole("button", { name: "Mark as read", exact: true }).press("Enter");
+    await expect(student.getByRole("status").filter({ hasText: "Marked as read." })).toBeVisible();
+    await student.reload();
+    await expect(student.getByText("0 unread", { exact: true })).toBeVisible();
+    await student.getByRole("button", { name: "Acknowledge change" }).press("Enter");
+    await expect(student.getByText(/^Acknowledged ·/)).toBeVisible();
+    await student.reload();
+    await expect(student.getByText(/^Acknowledged ·/)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Your updates" })).toBeVisible();
+    await page.getByRole("button", { name: "Refresh", exact: true }).press("Enter");
+    await expect(counts).toContainText("1 of 5 acknowledged");
+    await counts.getByRole("link", { name: "Review published change" }).press("Enter");
+    await expect(page.getByRole("link", { name: "Back to all updates" })).toBeVisible();
+
+    for (const width of [320, 390, 768, 1440]) {
+      await student.setViewportSize({ width, height: 1024 });
+      expect(await student.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect((await new AxeBuilder({ page: student }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+      if (width === 390 || width === 1440) await student.screenshot({ path: testInfo.outputPath(`notifications-${width}.png`) });
+      await student.evaluate(() => { document.documentElement.style.zoom = "2"; });
+      expect(await student.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await student.evaluate(() => { document.documentElement.style.zoom = ""; });
+    }
+    await student.setViewportSize({ width: 390, height: 950 });
+    await student.getByRole("link", { name: "Open current timetable" }).press("Enter");
+    await expect(student.getByRole("heading", { name: "Timetable", exact: true })).toBeVisible();
+    await expect(student.getByRole("region", { name: "Published weekly agenda" })).toContainText(/Rescheduled · Original 2099-01-05/);
+    await expect(student.getByRole("region", { name: "Published weekly agenda" })).toContainText("Delivery: Pending");
+  } finally { await context.close(); }
+});
+
 test("stale preview is rejected and recompute/save/preview recovers retained selection", async ({ page }) => {
   await login(page); await open(page); await selectSave(page); await preview(page);
   await db.semester.update({ where: { id: f.semester.id }, data: { scheduleRevision: { increment: 1 } } });

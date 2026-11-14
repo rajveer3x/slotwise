@@ -48,9 +48,28 @@ async function prepare(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>
     }
   }
   const facultyIds = [...new Set(changes.flatMap(c => [c.before.facultyId, c.after.facultyId]))], sectionIds = [...new Set(changes.map(c => c.after.sectionId))];
-  const recipients = await tx.user.findMany({ where: { departmentId: actor.departmentId, active: true, OR: [{ role: { in: ["ADMIN", "COORDINATOR", "HOD"] } }, { faculty: { id: { in: facultyIds } } }, { role: "STUDENT", memberships: { some: { archived: false, sectionId: { in: sectionIds } } } }] }, select: { id: true, name: true, role: true }, orderBy: { id: "asc" } });
+  const audience = await tx.user.findMany({
+    where: { departmentId: actor.departmentId, active: true, OR: [
+      { role: { in: ["ADMIN", "COORDINATOR", "HOD"] } },
+      { role: "FACULTY", faculty: { id: { in: facultyIds } } },
+      { role: "STUDENT", memberships: { some: { archived: false, sectionId: { in: sectionIds } } } },
+    ] },
+    select: {
+      id: true, name: true, role: true, faculty: { select: { id: true } },
+      memberships: { where: { archived: false, sectionId: { in: sectionIds } }, select: { sectionId: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+  const recipientScopes = audience.map(user => ({
+    recipientId: user.id,
+    affectedObligationIds: changes.filter(({ before, after }) =>
+      user.role === "STUDENT" ? user.memberships.some(m => m.sectionId === after.sectionId)
+        : user.role === "FACULTY" ? before.facultyId === user.faculty?.id || after.facultyId === user.faculty?.id
+          : true).map(c => c.after.obligationId),
+  }));
+  const recipients = audience.map(({ id, name, role }) => ({ id, name, role }));
   const preview = { token: board.token, planVersion: plan.version, revision: board.revision, changes, selectedCount: selected.length, unresolved: board.items.filter(i => !command.occurrenceIds.includes(i.original.occurrenceId)).map(i => i.original), recipients, blockers: [...new Set(blockers)], labels: Object.fromEntries(Object.entries(board.labels).sort(([a], [b]) => a.localeCompare(b))) };
-  return { plan, candidates, preview: { ...preview, fingerprint: hash({ ...preview, consent: board.history.filter(h => command.occurrenceIds.includes(h.occurrenceId)) }) } };
+  return { plan, candidates, recipientScopes, preview: { ...preview, fingerprint: hash({ ...preview, recipientScopes, consent: board.history.filter(h => command.occurrenceIds.includes(h.occurrenceId)) }) } };
 }
 export async function mutatePublication(input: unknown) { return changePublication(await sessionIdentity(), input); }
 export async function changePublication(actorId: string | null, input: unknown): Promise<PublicationResult> {
@@ -116,7 +135,10 @@ export async function changePublication(actorId: string | null, input: unknown):
       const allocations = await tx.courseAllocation.findMany({ where: { departmentId, id: { in: allocationIds } }, select: { semesterId: true } });
       await tx.semester.updateMany({ where: { departmentId, id: { in: [...new Set(allocations.map(a => a.semesterId))] } }, data: { scheduleRevision: { increment: 1 } } });
       await tx.auditEvent.create({ data: { departmentId, actorId, action: "RESOLUTION_PUBLISHED", entityId: publication.id, before: { revision: preview.revision, changes: preview.changes.map(c => c.before) } as unknown as Prisma.InputJsonValue, after: { revision: preview.revision + 1, changes: preview.changes.map(c => c.after), unresolvedIds: preview.unresolved.map(a => a.occurrenceId) } as unknown as Prisma.InputJsonValue } });
-      await tx.notification.createMany({ data: preview.recipients.map(r => ({ departmentId, recipientId: r.id, changeId: publication.id, message: `Schedule recovery published: ${preview.selectedCount} changes. View your timetable for current teacher, time and room. Delivery remains pending.` })) });
+      await tx.notification.createMany({ data: prepared.recipientScopes.map(scope => ({
+        ...scope, departmentId, changeId: publication.id, publicationId: publication.id,
+        message: "Schedule recovery published.",
+      })) });
       // Recheck time at the end of the transaction as well as after lock acquisition.
       if (preview.changes.some(c => instant(c.after.date, c.after.startMinute) <= new Date())) throw new ScheduleError("STALE_VERSION", "A selected class started while publishing. Nothing committed; recompute.");
       const result: PublicationResult = { ok: true, publicationId: publication.id, revision: preview.revision + 1, message: `Published ${preview.selectedCount} changes. ${preview.unresolved.length} unresolved classes need recomputation. Required minutes and delivery are unchanged.` };

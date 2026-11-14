@@ -3,6 +3,6 @@ import { revalidatePath } from "next/cache";
 import { mutateResolution } from "@/server/services/resolutions";
 export async function resolutionAction(input: unknown) {
   const result = await mutateResolution(input);
-  if (result.ok) revalidatePath("/resolutions");
+  if (result.ok) { revalidatePath("/resolutions"); revalidatePath("/notifications"); }
   return result;
 }

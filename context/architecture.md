@@ -148,3 +148,10 @@ ResolutionPlan now has exactly one source: approved leave or a not-held source o
 ## Implemented workload and report boundary (009)
 
 `/workload` and `/reports` use server-only reads with a repeatable-read PostgreSQL snapshot. Both reload the current actor and scope every query by department. The faculty workload query also scopes by the actor’s faculty profile. Narrow Prisma projections supply pure workload and recovery functions without private leave content. Both React tables and CSS bar charts render the same metric results. GET forms expose shareable institution-local dates. Publication, leave, delivery and relevant master-data actions revalidate the dashboards after successful operations.
+
+
+## Implemented notifications boundary (010)
+
+`server/services/notifications.ts` scopes inbox and detail reads by authenticated recipient and department. Recovery publications snapshot the recipient's affected obligation IDs with each notification. The inbox projects safe fields from the saved before/after snapshot and resolves current timetable links by teaching obligation. Earlier recovery notifications are linked to their publication by a migration and use current section/faculty scope for detailed history because the original per-class audience was not stored.
+
+Notification mutations lock and reload the actor before touching the scoped record. The acknowledgement primary key and foreign key to the original notification enforce one acknowledgement per recipient and recovery publication. The notification's read state and acknowledgement commit in one transaction. Department managers see aggregate counts from the original recipient rows. The inbox refreshes on navigation, explicit refresh and local mutations.

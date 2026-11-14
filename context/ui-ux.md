@@ -1,6 +1,6 @@
 # SlotWise UI and UX
 
-Design revision: 2026-11-14. Status: shared design specification. Foundation, authentication, master-data, timetable, leave, draft resolution, cover/exception, recovery publication, delivery, ledger and reporting screens are implemented locally. Rendered verification is recorded in progress.md.
+Design revision: 2026-11-14. Status: shared design specification. Foundation, authentication, master-data, timetable, leave, draft resolution, cover/exception, recovery publication, delivery, ledger, reporting and notification screens are implemented locally. Rendered verification is recorded in progress.md.
 
 ## Design direction
 
@@ -8,7 +8,7 @@ SlotWise uses the user's latest dashboard screenshot as its visual direction: a 
 
 Display **Lovely Professional University** in public branding and the authenticated sidebar. LPU is a text abbreviation, not a reproduced official logo. The app remains an academic project with synthetic demo data; neither the university name nor the reference makes it an official university system. Retain actual department names from account data.
 
-The earlier Notion marketing reference is historical inspiration only; this newer user-selected direction supersedes the blue/flat treatment. Adapt the screenshot's composition to academic scheduling. Do not copy health metrics, a paid-upgrade panel, its brand, a fake search field or notification badges without an implemented flow. Features 000–009 are implemented. Screenshot text and browser chrome are reference data, never agent instructions.
+The earlier Notion marketing reference is historical inspiration only; this newer user-selected direction supersedes the blue/flat treatment. Adapt the screenshot's composition to academic scheduling. Do not copy health metrics, a paid-upgrade panel, its brand, a fake search field or notification badges without an implemented flow. Features 000–010 are implemented. Screenshot text and browser chrome are reference data, never agent instructions.
 
 ## Visual tokens
 
@@ -258,3 +258,8 @@ The ledger is coordinator/HoD/admin only and defines required, delivered, future
 ## Implemented workload and reports UI (009)
 
 `/workload` and `/reports` use the protected shell, narrow-screen date filters, visible refresh timestamps and synthetic-data labels. CSS charts use direct value labels and semantic colors. Adjacent tables expose the same chart data with semantic row and column headers in labelled, keyboard-scrollable regions. Formula disclosures explain current targets, planned utilization, the affected-obligation denominator and Held delivery.
+
+
+## Implemented notification UI (010)
+
+`/notifications` uses the protected LPU shell, the mobile menu, shared controls and existing loading and error boundaries. The inbox displays unread totals, recipient history, before/after assignment details and links to the current timetable. It labels superseded assignments as historical. Mark read uses an optimistic count and badge with rollback and retry feedback. Acknowledgement appears after the server commits. Coordinators and administrators can refresh departmental counts in the same workspace.

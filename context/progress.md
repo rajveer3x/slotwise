@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–009 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Features 010–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–010 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Features 011–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -20,7 +20,7 @@ Features 000–009 are implemented locally. Feature 005 adds a deterministic pur
 | 007 | Change preview and publication | 006 | Complete; subset review, exact consent, real database races/rollback and browser flow verified |
 | 008 | Delivery and contact-minutes ledger | 007 | Complete; unique credit, corrections, recovery, concurrency and browser checks verified |
 | 009 | Workload and impact dashboards | 008 | Complete; local metric, scope and responsive browser checks verified |
-| 010 | Notifications and acknowledgement | 007, 009 | Not started |
+| 010 | Notifications and acknowledgement | 007, 009 | Complete locally |
 | 011 | Audit viewer and demo verification | 010 | Not started |
 
 Specifications are linked from [the feature index](feature-specs/README.md). Follow dependencies even if choosing a different order.
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 009. Feature 010 (notifications and acknowledgement) is next on a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 010. Feature 011 (audit viewer and demo verification) is next on a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -801,3 +801,31 @@ Initial checks surfaced a missing fixture decision timestamp, an unused import a
 
 - Rechecked all five acceptance criteria and reviewed the role scope, reporting inputs, replacement history and chart/table agreement. The fresh browser run exposed an existing publication keyboard-test race: the test could focus the preview button before the draft-save transition enabled it. Updated the test to wait for enabled controls and send Enter to the target buttons. All five repetitions and the full rerun passed.
 - Fresh checks passed on Node 24.22.3: `npm run typecheck`, `npm run lint`, `npm test` (56/56), `npm run test:integration` (115/115), `npm run build`, `npm run check:client-bundle` (41 bundles), and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (90/90). `npm run db:validate`, `npm run db:check`, Prisma migration status (11 current), the database-to-schema diff (empty) and `git diff --check` also passed.
+
+## Feature 010 handoff — 2026-11-14
+
+**Status:** complete locally. All five acceptance criteria were verified.
+
+- Added `/notifications` to the existing AppShell. Its protected Server Component reads the paginated inbox, unread count and authorized aggregate counts. The inbox shows safe before/after details for published recovery and links to the latest timetable by teaching obligation. React `useOptimistic` rolls back the read badge and count if the Server Action fails. Acknowledgement appears after the database commits.
+- `src/server/services/notifications.ts` scopes reads and mutations by recipient and department, and counts by the coordinator or administrator's own department. `src/server/services/publications.ts` records each recipient's affected obligations in the existing publication transaction. The migrations link existing recovery notifications to publications and add a PostgreSQL acknowledgement key and foreign key to the recipient's notification. Repeated acknowledgement preserves the first timestamp. Read and acknowledgement are independent actions. Acknowledgement also marks the notification read and leaves attendance, consent, delivery and contact minutes independent.
+- Existing cover and template notices support mark-read and their existing destinations. The acknowledgement and before/after detail apply to feature 007 recovery publications. Earlier recovery notices keep their stored recipients. Their detailed history uses current membership or faculty scope because their original per-class audience was unavailable. The inbox refreshes on navigation, local mutations and explicit refresh.
+- Integration checks in `tests/integration/publication.test.ts` cover overlapping memberships, multiple sections, inactive recipients, retry deduplication, cross-account and cross-department access, concurrent acknowledgement, historical assignment retention, the current timetable link and delivery isolation. Synthetic fixtures run in `slotwise_auth_test`.
+- Browser checks in `tests/e2e/publication.spec.ts` cover keyboard access through the mobile drawer, the empty inbox, direct denial, pending feedback, optimistic rollback after an aborted request, retry, durable acknowledgement, the coordinator's updated aggregate and navigation to the current timetable. Verified reflow at 320, 390, 768 and 1440 px with 200% CSS zoom, reduced motion and axe WCAG A/AA. Inspected mobile and desktop captures. Manual screen-reader testing remains unverified.
+- Demo by publishing a recovery as coordinator, opening **Notifications** as the affected student and selecting **Acknowledge change**, then refreshing **Department acknowledgements** as coordinator. Next feature on request is **011 audit viewer and demo verification**.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run db:validate`, `npm run db:check`, `npm run db:migrate`, `npm run db:test:migrate` | Passed. Both local databases received the two migrations. Prisma's database-to-schema diff was empty. |
+| `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check` | Passed on Node 24.22.3. |
+| `npm test` | 56/56 passed. |
+| `npm run test:integration` | 117/117 passed. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 91/91 passed. The targeted mobile inbox flow also passed after adding the coordinator's link to their own copy of each change. |
+| `npm run check:client-bundle` | 42 bundles checked. |
+
+The first build surfaced a test assertion that failed TypeScript union narrowing. The assertion was corrected and the build passed. The inherited pg deprecation and ESLint support maintenance notes remain.
+
+## Feature 010 verification before GitHub push — 2026-11-14
+
+- Rechecked all five acceptance criteria on the final implementation. Confirmed the recovery audience and per-class scope, recipient-only reads and writes, one durable acknowledgement under concurrent retries, historical assignment links and optimistic read rollback. Acknowledgement leaves delivery and contact minutes independent.
+- Fresh verification on Node 24.22.3 passed `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (56/56), `npm run test:integration` (117/117), `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (91/91), `npm run check:client-bundle` (42 bundles), database validation and connectivity, migration status (13 current), Prisma schema diff (empty), and staged whitespace checks.
+- The first integration run overlapped Prisma client generation and one test file could not import a generated module. The full rerun passed after generation finished.

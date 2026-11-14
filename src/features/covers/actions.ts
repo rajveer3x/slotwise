@@ -6,6 +6,7 @@ export async function coverAction(input: unknown) {
   if (result.ok || result.code === "EXPIRED") {
     revalidatePath("/cover-requests");
     revalidatePath("/resolutions");
+    revalidatePath("/notifications");
   }
   return result;
 }

@@ -421,10 +421,27 @@ model Notification {
   recipientId String
   recipient User @relation(fields: [recipientId, departmentId], references: [id, departmentId], onDelete: Restrict)
   changeId String
+  publicationId String?
+  publication SchedulePublication? @relation(fields: [publicationId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  acknowledgement PublicationAcknowledgement?
+  affectedObligationIds String[] @default([])
   message String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   readAt DateTime? @db.Timestamptz(3)
   @@unique([recipientId, changeId])
+  @@unique([recipientId, publicationId])
+  @@index([departmentId, recipientId, createdAt, id])
+  @@index([departmentId, recipientId, readAt])
+  @@index([publicationId, departmentId])
+}
+
+model PublicationAcknowledgement {
+  recipientId String
+  publicationId String
+  notification Notification @relation(fields: [recipientId, publicationId], references: [recipientId, publicationId], onDelete: Restrict, onUpdate: NoAction)
+  acknowledgedAt DateTime @default(now()) @db.Timestamptz(3)
+  @@id([recipientId, publicationId])
+  @@index([publicationId])
 }
 
 model MasterMutationReceipt {
@@ -590,6 +607,7 @@ model SchedulePublication {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   items ResolutionItem[]
   occurrences ClassOccurrence[]
+  notifications Notification[]
   @@unique([id, departmentId])
   @@index([departmentId, createdAt])
 }

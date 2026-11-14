@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { getDb } from "../../src/server/db";
+import { changeNotification, readAcknowledgementCounts, readNotification, readNotificationInbox } from "../../src/server/services/notifications";
 import { changePublication } from "../../src/server/services/publications";
 import { changeResolution, readResolutionWorkspace } from "../../src/server/services/resolutions";
 import { changeCover, readCoverWorkspace } from "../../src/server/services/covers";
@@ -25,7 +26,7 @@ after(() => db.$disconnect());
 type Fixture = Awaited<ReturnType<typeof resolutionFixture>>;
 async function fixture(run: (f: Fixture) => Promise<void>) { const f = await resolutionFixture(db, "synthetic-no-login"); try { await run(f); } finally { await cleanupTimetable(db, f.departmentId); } }
 function good(r: PublicationResult) { assert.equal(r.ok, true, JSON.stringify(r)); return r; }
-const code = (r: PublicationResult) => r.ok ? "OK" : r.code;
+const code = (r: { ok: true } | { ok: false; code: string }) => r.ok ? "OK" : r.code;
 async function board(f: Fixture, actor = f.coordinator.id) { return (await readResolutionWorkspace(actor, f.leaveId)).board!; }
 async function save(f: Fixture, b: Board, decisions: Decisions, actor = f.coordinator.id) {
   const r = await changeResolution(actor, { operation: "save", leaveId: f.leaveId, decisions, expectedToken: b.token, expectedVersion: b.planVersion, requestId: randomUUID() });
@@ -87,6 +88,103 @@ test("same-key concurrent publication returns original result; changed payload/k
   assert.equal(await db.schedulePublication.count({ where: { departmentId: f.departmentId } }), 1);
   assert.equal(await db.notification.count({ where: { changeId: good(results[0]).publicationId } }), 5);
 }));
+test("notification reads and writes enforce recipient scope, preserve seen timestamps, and count an acknowledgement once", () => fixture(async f => {
+  const inactive = await db.user.create({ data: {
+    departmentId: f.departmentId, name: "Inactive synthetic student", email: `${randomUUID()}@test.invalid`,
+    passwordHash: "synthetic", role: "STUDENT", active: false,
+  } });
+  await db.sectionMembership.create({ data: { departmentId: f.departmentId, sectionId: f.section.id, userId: inactive.id } });
+  const firstSectionOnly = await db.user.create({ data: {
+    departmentId: f.departmentId, name: "Synthetic student", email: `${randomUUID()}@test.invalid`,
+    passwordHash: "synthetic", role: "STUDENT",
+  } });
+  await db.sectionMembership.create({ data: { departmentId: f.departmentId, sectionId: f.section.id, userId: firstSectionOnly.id } });
+  const anotherSection = await db.section.create({ data: {
+    departmentId: f.departmentId, semesterId: f.semester.id, code: "TEST2", name: "Another synthetic affected section",
+    strength: 36, preferredPeriodsPerDay: 5,
+  } });
+  await db.sectionMembership.create({ data: { departmentId: f.departmentId, sectionId: anotherSection.id, userId: f.student.id } });
+  // Move the second test class into a second section before generating the publication.
+  await db.courseAllocation.update({ where: { id: f.allocations[1].id }, data: { sectionId: anotherSection.id } });
+  const second = await db.classOccurrence.findMany({ where: { teachingObligation: { allocationId: f.allocations[1].id } }, select: { id: true } });
+  await db.classOccurrence.updateMany({ where: { id: { in: second.map(o => o.id) } }, data: { sectionId: anotherSection.id } });
+  await db.resourceReservation.updateMany({ where: { occurrenceId: { in: second.map(o => o.id) }, resourceType: "SECTION" }, data: { resourceId: anotherSection.id } });
+  const c = await command(f, await choose(f, [0, 1]));
+  const published = good(await changePublication(f.coordinator.id, c));
+  assert.deepEqual(await changePublication(f.coordinator.id, c), published);
+  const inbox = await readNotificationInbox(f.student.id);
+  assert.equal(inbox.unread, 1);
+  assert.equal(inbox.notices.length, 1);
+  const notice = inbox.notices[0], notificationId = notice.id;
+  assert.equal(notice.changes.length, 2);
+  const firstSectionInbox = await readNotificationInbox(firstSectionOnly.id);
+  assert.equal(firstSectionInbox.notices.length, 1);
+  assert.deepEqual(firstSectionInbox.notices[0].changes, notice.changes.filter(c => c.title.includes("CS101")));
+  assert.match(notice.changes[0].before, /2099-01-05/);
+  assert.doesNotMatch(JSON.stringify(notice), /Private browser resolution reason|meetingUrl|recipients/);
+  assert.equal((await readNotificationInbox(f.outsider.id)).unread, 0);
+  assert.equal(await db.notification.count({ where: { recipientId: inactive.id } }), 0);
+  const otherDepartment = await resolutionFixture(db, "synthetic");
+  try {
+    for (const id of [f.outsider.id, f.coordinator.id, f.admin.id, otherDepartment.coordinator.id]) {
+      await assert.rejects(readNotification(id, notificationId), { code: "FORBIDDEN" });
+      assert.equal(code(await changeNotification(id, { notificationId, operation: "read" })), "FORBIDDEN");
+      assert.equal(code(await changeNotification(id, { notificationId, operation: "acknowledge" })), "FORBIDDEN");
+    }
+    assert.deepEqual(await readAcknowledgementCounts(otherDepartment.coordinator.id), []);
+  } finally { await cleanupTimetable(db, otherDepartment.departmentId); }
+
+  await assert.rejects(readAcknowledgementCounts(f.student.id), { code: "FORBIDDEN" });
+  assert.equal(code(await changeNotification(null, { notificationId, operation: "read" })), "UNAUTHORIZED");
+  assert.equal(code(await changeNotification(f.student.id, { notificationId, operation: "read", recipientId: f.student.id })), "VALIDATION_ERROR");
+  const where = { id: notificationId };
+  assert.equal((await changeNotification(f.student.id, { notificationId, operation: "read" })).ok, true);
+  assert.equal((await readNotificationInbox(f.student.id)).unread, 0);
+  const seen = (await db.notification.findUniqueOrThrow({ where })).readAt;
+  assert.ok(seen);
+  assert.equal((await readAcknowledgementCounts(f.coordinator.id))[0].acknowledged, 0);
+  const delivery = await db.classOccurrence.findMany({ where: { publicationId: published.publicationId }, orderBy: { id: "asc" } });
+  const attempts = await Promise.all(Array.from({ length: 4 }, () =>
+    changeNotification(f.student.id, { notificationId, operation: "acknowledge" })));
+  assert.ok(attempts.every(r => r.ok));
+  assert.equal(await db.publicationAcknowledgement.count({ where: { recipientId: f.student.id } }), 1);
+  const saved = await readNotification(f.student.id, notificationId);
+  assert.ok(saved.acknowledgedAt);
+  assert.deepEqual((await db.notification.findUniqueOrThrow({ where })).readAt, seen);
+  assert.deepEqual((await readAcknowledgementCounts(f.coordinator.id)).map(p => [p.recipients, p.acknowledged]), [[6, 1]]);
+  assert.deepEqual(await db.classOccurrence.findMany({ where: { publicationId: published.publicationId }, orderBy: { id: "asc" } }), delivery);
+  assert.equal(await db.deliveryRecord.count({ where: { departmentId: f.departmentId } }), 0);
+
+  await db.sectionMembership.updateMany({ where: { userId: f.student.id }, data: { archived: true } });
+  assert.equal((await readNotification(f.student.id, notificationId)).changes.length, 2);
+  assert.deepEqual((await readAcknowledgementCounts(f.coordinator.id)).map(p => [p.recipients, p.acknowledged]), [[6, 1]]);
+  await db.user.update({ where: { id: f.student.id }, data: { active: false } });
+  assert.equal(code(await changeNotification(f.student.id, { notificationId, operation: "acknowledge" })), "UNAUTHORIZED");
+}));
+
+test("a notification retains the old assignment and follows the current occurrence by teaching obligation", () => fixture(async f => {
+  const publication = good(await changePublication(f.coordinator.id, await command(f, await choose(f))));
+  const original = (await readNotificationInbox(f.student.id)).notices[0];
+  const old = await db.classOccurrence.findFirstOrThrow({ where: { publicationId: publication.publicationId } });
+  assert.equal(original.changes[0].status, "Published assignment");
+  // Synthetic successor models the output of a later scheduler while preserving the first publication.
+  const { id: oldId, ...assignment } = old;
+  const newDate = "2099-01-21";
+  await db.$transaction(async tx => {
+    await tx.resourceReservation.deleteMany({ where: { occurrenceId: oldId } });
+    await tx.classOccurrence.update({ where: { id: oldId }, data: { schedulingStatus: "CANCELLED" } });
+    await tx.classOccurrence.create({ data: {
+      ...assignment, replacesId: oldId, localDate: newDate, startAt: instant(newDate, 540), endAt: instant(newDate, 600),
+      publicationId: null, resolutionTier: null, resolved: false,
+    } });
+  });
+  const historic = (await readNotification(f.student.id, original.id)).changes[0];
+  assert.equal(historic.status, "Historical assignment · superseded");
+  assert.equal(historic.after, original.changes[0].after);
+  assert.equal(historic.timetableHref, `/timetable?semester=${f.semester.id}&week=${newDate}`);
+  assert.equal((await changeNotification(f.student.id, { notificationId: original.id, operation: "acknowledge" })).ok, true);
+}));
+
 test("competing different obligations target the same faculty, section and room; department lock allows only one publication", () => fixture(async f => {
   const one = await choose(f, [0]), two = await choose(f, [1], f.admin.id);
   const a = one.items[0].selected!.assignments[0], b = two.items[1].selected!.assignments[0];

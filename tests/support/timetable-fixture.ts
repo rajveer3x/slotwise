@@ -32,6 +32,7 @@ export async function cleanupTimetable(db: PrismaClient, departmentId: string) {
   await db.deliveryRecord.deleteMany({ where });
   await db.substitutionRequest.deleteMany({ where }); await db.saturdayException.deleteMany({ where });
   await db.resolutionItem.deleteMany({ where });
+  await db.publicationAcknowledgement.deleteMany({ where: { notification: where } });
   await db.notification.deleteMany({ where }); await db.auditEvent.deleteMany({ where }); await db.mutationReceipt.deleteMany({ where }); await db.resourceReservation.deleteMany({ where });
   const cleanupRoom = await db.room.findFirstOrThrow({ where, select: { id: true } });
   await db.classOccurrence.updateMany({ where, data: { schedulingStatus: "CANCELLED", roomId: cleanupRoom.id, resolutionTier: null, meetingUrl: null, publicationId: null, replacesId: null } });
