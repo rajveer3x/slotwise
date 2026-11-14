@@ -181,3 +181,9 @@ Consult the documentation matching installed versions when implementing APIs; th
 ## CSV parser (013)
 
 `csv-parse` 7.0.3 parses uploads on the server. A strict UTF-8 decoder accepts a UTF-8 BOM and rejects invalid byte sequences and NUL. Uploads are limited to 128 KiB and 300 data records. The templates use ordered headers and synthetic examples. Formula neutralization is applied before export quoting. [CSV Parse documentation](https://csv.js.org/parse/)
+
+## Feature 015 calendar feeds
+
+- [ical-generator](https://github.com/sebbo2002/ical-generator) 11.1.3 serializes [RFC 5545](https://www.rfc-editor.org/info/rfc5545/) iCalendar on the server, using UTC instants from PostgreSQL with escaped and folded UTF-8 text. Tests parse responses with [ical.js](https://github.com/kewisch/ical.js) 2.2.1.
+- Migration `20261115010000_calendar_feeds` adds the calendar subscription table, cancellation timestamps and a transition trigger. It backfills the timestamp on existing cancellations at migration time.
+- Subscription URLs use the canonical `NEXTAUTH_URL` origin. Next.js incoming-request logging ignores the feed path. The `npm run dev` script suppresses Next.js diagnostic trace-file spans because those spans include raw request URLs even when incoming-request logging is filtered. Hosting/proxy/access logs and optional telemetry must redact the feed URL and issuance responses.

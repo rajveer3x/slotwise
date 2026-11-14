@@ -7,7 +7,7 @@
     "node": ">=24.11.0 <25"
   },
   "scripts": {
-    "dev": "next dev --webpack --hostname 127.0.0.1",
+    "dev": "NEXT_TRACE_SPAN_THRESHOLD_MS=2147483647 next dev --webpack --hostname 127.0.0.1",
     "build": "prisma generate && next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint . --max-warnings=0",
@@ -31,6 +31,7 @@
     "argon2": "0.45.2",
     "csv-parse": "7.0.3",
     "dotenv": "^17.2.3",
+    "ical-generator": "11.1.3",
     "lucide-react": "^0.577.0",
     "next": "16.4.6",
     "next-auth": "4.24.15",
@@ -53,6 +54,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.6",
+    "ical.js": "2.2.1",
     "jsdom": "^29.0.0",
     "prisma": "7.10.1",
     "tailwindcss": "^4.2.1",

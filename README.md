@@ -98,6 +98,21 @@ Polls are advisory. They create no reservations, change no classes and grant no 
 PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/makeup-polls.spec.ts
 ```
 
+## Calendar feeds demo (015)
+
+1. Sign in with a faculty teaching profile or a student section membership. Open **Calendar feeds**, choose **Create subscription**, and copy the private URL while it is displayed.
+2. Subscribe by URL in a calendar app that can reach the SlotWise server. For a loopback demo, fetch the URL locally and inspect the iCalendar response. Keep the link private.
+3. Approve leave affecting a published class and fetch the same URL to see a cancellation. Publish a reviewed reschedule and fetch again. The class uses the same event UID with a higher sequence and its revised time.
+4. Open **Calendar feeds** and choose **Rotate link** to replace the URL or **Revoke link** to turn it off. After either action, the old URL returns 404. A calendar app controls when it polls and may retain previously downloaded events.
+
+The production-build browser walkthrough creates its own synthetic recovery scenario in the isolated PostgreSQL database.
+
+```sh
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/calendar-feeds.spec.ts
+```
+
+Set `NEXTAUTH_URL` to the reachable HTTPS origin for external subscriptions. Configure hosting, reverse-proxy and APM logging to redact calendar request URLs and subscription action response bodies. The local development command suppresses URL-bearing Next.js traces, and Next.js request logging excludes the calendar endpoint.
+
 ## Leave demo
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
@@ -229,6 +244,7 @@ Audit history is application-level and read-only for normal roles. Staff reasons
 - **Reporting:** Server Components read shareable URL filters and use authorized Prisma queries with a consistent PostgreSQL snapshot. Pure functions compute the metrics that React uses for both the CSS charts and semantic tables.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
+- **Calendar feeds:** a protected Server Component loads subscription status, a Client Component holds a newly issued URL temporarily, and a Server Action checks permission and version before committing. A dynamic Route Handler authenticates calendar clients by hashed URL token and serializes one consistent PostgreSQL snapshot.
 
 Development/build use Webpack because Turbopack's CSS worker failed on this host. System fonts avoid network font downloads. Agent-file generation is disabled to preserve `AGENTS.md`.
 
@@ -244,4 +260,4 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 015–017 require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 016 and 017 require a separate request.

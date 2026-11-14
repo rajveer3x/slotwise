@@ -276,3 +276,7 @@ The manager-only generator panel on `/timetable` uses the existing schedule pane
 ## Implemented makeup voting UI (014)
 
 The weekday candidate panel in Resolutions includes a disclosure for selecting poll options and entering an Asia/Kolkata deadline. The Makeup polls workspace uses the shared shell, panels and controls. Representatives select a preference with a native radio group and see their saved choice on reload. Managers can close or cancel active polls and review a closed preference through Class recovery. Historical options stay visible, and an unavailable choice shows a recompute message in the recovery board.
+
+## Implemented calendar subscriptions UI (015)
+
+**Calendar feeds** uses the protected shell and shared panels, Button and Input. It shows one card per available scope, with create, copy, confirmed rotation and revocation. A new URL appears in a labelled read-only field; refresh loads current status. If a scope becomes unavailable, the owner can still revoke the prior link. In-flight controls disable duplicate actions, link copy has a keyboard selection fallback, and server feedback announces success or offers a refresh after a stale change.

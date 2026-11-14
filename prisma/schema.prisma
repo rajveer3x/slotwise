@@ -73,8 +73,26 @@ model User {
   deliveryRecords DeliveryRecord[]
   createdMakeupPolls MakeupPoll[]
   makeupVotes PollVote[]
+  calendarSubscriptions CalendarSubscription[]
   @@unique([id, departmentId])
   @@index([departmentId])
+}
+
+enum CalendarScope {
+  FACULTY
+  SECTION
+}
+
+model CalendarSubscription {
+  id String @id @default(cuid())
+  ownerId String
+  departmentId String
+  owner User @relation(fields: [ownerId, departmentId], references: [id, departmentId], onDelete: Cascade)
+  scope CalendarScope
+  scopeId String
+  tokenHash String? @unique @db.Char(64)
+  version Int @default(1)
+  @@unique([ownerId, scope, scopeId])
 }
 
 enum TeachingType {
@@ -374,6 +392,7 @@ model ClassOccurrence {
   startAt DateTime @db.Timestamptz(3)
   endAt DateTime @db.Timestamptz(3)
   schedulingStatus SchedulingStatus @default(ACTIVE)
+  cancelledAt DateTime? @db.Timestamptz(3)
   deliveryStatus DeliveryStatus @default(PENDING)
   // Recovery publication sets this; template revisions fail closed.
   resolved Boolean @default(false)
