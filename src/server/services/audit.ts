@@ -19,7 +19,18 @@ const placement = z.object({ ...schedule, seriesId: id, weekday: z.number().int(
 const assignment = z.object({ ...schedule, occurrenceId: id, obligationId: id, date,
   tier: z.number().int().min(1).max(5).optional(), schedulingStatus: status.optional() });
 const timetable = { ...version, ...revision, semesterId: id, effectiveFrom: date, status,
-  entries: z.array(placement), occurrences: integer, occurrenceIds: z.array(id) };
+  entries: z.array(placement), occurrences: integer, occurrenceIds: z.array(id),
+  generation: z.object({
+    status: z.enum(["finished", "timeout", "cancelled", "work-limit"]),
+    seed: integer, placed: integer, required: integer, work: integer, runtimeMs: integer,
+    fixedCount: integer, inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+    quality: z.object({ sameDayPairs: integer, theoryInLab: integer }),
+    policy: z.object({
+      version: z.literal("weekly-v1"), timeoutMs: integer, workLimit: integer, improvementLimit: integer,
+      maxAllocations: integer, maxPeriods: integer, maxSlots: integer, maxRooms: integer, maxRelatedRecords: integer,
+    }),
+  }),
+};
 const leave = { ...version, ...revision, status, facultyId: id, startDate: date, endDate: date, cancelledOccurrenceIds: z.array(id) };
 const consent = { status };
 const exception = { ...consent, reason: z.string().max(1000) };

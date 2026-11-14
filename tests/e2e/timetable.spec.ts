@@ -99,3 +99,93 @@ for (const width of [320, 390, 768, 1440]) test(`timetable agenda/grid, keyboard
   await page.screenshot({ path: testInfo.outputPath(`preview-${width}.png`), fullPage: true });
   await page.evaluate(() => { document.documentElement.style.zoom = "2"; }); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); expect(errors).toEqual([]);
 });
+
+test("review and open a generated timetable, then use the existing publication preview", async ({ page }, testInfo) => {
+  await login(page);
+  await page.goto("/timetable");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const panel = page.getByRole("region", { name: "Generate a weekly timetable" });
+  const seed = panel.getByLabel("Search seed");
+  await seed.fill("42");
+  await seed.press("Enter");
+  await expect(panel.getByRole("heading", { name: "All weekly periods placed" })).toBeVisible();
+  const disclosure = panel.getByText("Review 2 proposed weekly placements", { exact: true });
+  await disclosure.press("Enter");
+  await expect(panel.getByText(/CS101 · S1 ·/)).toBeVisible();
+
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(panel.getByRole("button", { name: "Open as draft" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator("html").evaluate(el => { el.style.zoom = "2"; });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator("html").evaluate(el => { el.style.zoom = ""; });
+    if (width === 390 || width === 1440) {
+      await panel.screenshot({ path: testInfo.outputPath(`generation-${width}.png`) });
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    }
+  }
+  expect(await db.timetableVersion.count({ where: { departmentId: f.departmentId } })).toBe(0);
+  await panel.getByRole("button", { name: "Open as draft" }).press("Enter");
+  await expect(page).toHaveURL(/draft=/);
+  await expect(page.getByRole("heading", { name: "Weekly draft · Version 1" })).toBeVisible();
+  expect(await db.resourceReservation.count({ where: { departmentId: f.departmentId } })).toBe(0);
+  await page.getByRole("button", { name: "Preview publication" }).press("Enter");
+  await expect(page.getByRole("region", { name: "Publication preview" })).toContainText("dated classes");
+});
+
+test("generator handles cancellation, partial coverage, stale review and direct role denial", async ({ page }) => {
+  const endpoint = "**/api/timetable/generate";
+  await db.facultyQualification.updateMany({
+    where: { departmentId: f.departmentId, courseId: f.allocations[1].courseId }, data: { archived: true },
+  });
+  await login(page);
+  await page.goto("/timetable");
+  const panel = page.getByRole("region", { name: "Generate a weekly timetable" });
+  const generate = panel.getByRole("button", { name: "Generate proposal" });
+  let release!: () => void, started!: () => void;
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  const intercepted = new Promise<void>(resolve => { started = resolve; });
+  await page.route(endpoint, async route => {
+    started();
+    await hold;
+    await route.abort().catch(() => {});
+  }, { times: 1 });
+  await generate.press("Enter");
+  await intercepted;
+  try {
+    await expect(generate).toBeDisabled();
+    await panel.getByRole("button", { name: "Cancel search" }).press("Enter");
+    await expect(panel.getByRole("status")).toContainText("Search cancelled");
+    await expect(panel.getByRole("button", { name: "Open as draft" })).toHaveCount(0);
+  } finally {
+    release();
+  }
+
+  await generate.press("Enter");
+  await expect(panel.getByRole("heading", { name: "Partial proposal" })).toBeVisible();
+  await expect(panel.getByText(/CS102 · S1 · 0 of 1 periods placed/)).toBeVisible();
+  await db.semester.update({ where: { id: f.semester.id }, data: { scheduleRevision: { increment: 1 } } });
+  const open = panel.getByRole("button", { name: "Open as draft" });
+  await open.press("Enter");
+  await expect(panel.getByRole("status")).toContainText("Refresh the semester and generate again");
+  await expect(open).toBeDisabled();
+  await panel.getByRole("button", { name: "Refresh semester" }).press("Enter");
+  await expect(page.getByText(/Published schedule · Revision 1/)).toBeVisible();
+  await generate.press("Enter");
+  await expect(panel.getByRole("heading", { name: "Partial proposal" })).toBeVisible();
+  await open.press("Enter");
+  await expect(page.getByRole("heading", { name: "Weekly draft · Version 1" })).toBeVisible();
+  await page.getByRole("button", { name: "Preview publication" }).press("Enter");
+  await expect(page.getByRole("region", { name: "Conflict explanations" })).toContainText("0 of 1");
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await login(page, f.student.email);
+  await page.goto("/timetable");
+  await expect(panel).toHaveCount(0);
+  const response = await page.evaluate(({ semesterId, effectiveFrom }) => fetch("/api/timetable/generate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ semesterId, effectiveFrom, expectedRevision: 1, seed: 42 }),
+  }).then(r => r.status), { semesterId: f.semester.id, effectiveFrom: f.semester.startDate });
+  expect(response).toBe(403);
+});

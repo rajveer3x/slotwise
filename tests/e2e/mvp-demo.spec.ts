@@ -88,7 +88,9 @@ test("full synthetic MVP walkthrough across five roles keeps timetable, inbox, l
     await expect(saveResolution).toBeEnabled();
     await saveResolution.press("Enter");
     await expect(page.getByRole("status").filter({ hasText: "Draft saved." })).toBeVisible();
-    await page.getByRole("button", { name: "Send cover invitation" }).press("Enter");
+    const invite = page.getByRole("button", { name: "Send cover invitation" });
+    await expect(invite).toBeEnabled();
+    await invite.press("Enter");
     await expect(page.getByText(/Exact cover invitation sent in-app/)).toBeVisible();
 
     await login(invited, substitute.email);

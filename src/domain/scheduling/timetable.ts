@@ -14,40 +14,44 @@ export type Conflict = { rule: string; seriesId: string; message: string };
 export const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export function clockTime(n: number) { return `${Math.floor(n / 60).toString().padStart(2, "0")}:${(n % 60).toString().padStart(2, "0")}`; }
 export function overlaps(a: { startMinute: number; endMinute: number }, b: { startMinute: number; endMinute: number }) { return a.startMinute < b.endMinute && b.startMinute < a.endMinute; }
+export const maxDraftEntries = 300;
 export function slotSpan(p: Placement, data: SchedulingData) {
   const slots = data.slots.filter(s => !s.archived && s.weekday === p.weekday && s.startMinute >= p.startMinute && s.endMinute <= p.endMinute).sort((a, b) => a.startMinute - b.startMinute);
   return slots.length && slots[0].startMinute === p.startMinute && slots.at(-1)!.endMinute === p.endMinute && slots.every((s, i) => !i || slots[i - 1].endMinute === s.startMinute) ? slots.length : 0;
 }
 export function validatePlacements(entries: Placement[], data: SchedulingData): Conflict[] {
+  return entries.flatMap(p => placementConflicts(p, entries.filter(other => other !== p), data));
+}
+
+/** Validate one proposed placement against the other assignments. */
+export function placementConflicts(p: Placement, others: Placement[], data: SchedulingData): Conflict[] {
   const conflicts: Conflict[] = [];
-  for (const p of entries) {
-    const add = (rule: string, message: string) => conflicts.push({ rule, seriesId: p.seriesId, message: `${days[p.weekday] ?? "Invalid day"} ${clockTime(p.startMinute)}–${clockTime(p.endMinute)}: ${message}` });
-    const a = data.allocations.find(a => a.id === p.allocationId), room = data.rooms.find(r => r.id === p.roomId);
-    const course = data.courses.find(c => c.id === a?.courseId), section = data.sections.find(s => s.id === a?.sectionId), faculty = data.faculty.find(f => f.id === a?.facultyId);
-    if (!a || a.archived || !room || room.archived || !course || course.archived || !section || section.archived || !faculty || faculty.archived || !faculty.active) { add("RESOURCE", "Choose available allocation, course, section, teacher and room records."); continue; }
-    if (p.weekday < 1 || p.weekday > 5) add("DAY", "Initial timetables allow Monday–Friday only.");
-    const count = slotSpan(p, data);
-    if (!count || p.endMinute <= p.startMinute) add("SLOTS", "Use complete, consecutive teaching slots without a break.");
-    if (course.type === "LAB" && (room.type !== "LAB" || count < 2)) add("LAB", `${course.code} needs a laboratory and at least two consecutive slots.`);
-    if (room.capacity < section.strength) add("CAPACITY", `Room ${room.code} holds ${room.capacity}; section ${section.code} needs ${section.strength}.`);
-    if (!data.qualifications.some(q => !q.archived && q.facultyId === faculty.id && q.courseId === course.id)) add("QUALIFICATION", `${faculty.name} is not qualified for ${course.code}.`);
-    let coveredUntil = p.startMinute;
-    for (const interval of data.availability.filter(v => !v.archived && v.facultyId === faculty.id && v.weekday === p.weekday).sort((a, b) => a.startMinute - b.startMinute)) {
-      if (interval.startMinute <= coveredUntil && interval.endMinute > coveredUntil) coveredUntil = interval.endMinute;
-    }
-    if (coveredUntil < p.endMinute) add("AVAILABILITY", `${faculty.name} is unavailable for the full interval.`);
-    for (const other of entries) {
-      if (other === p || other.weekday !== p.weekday || !overlaps(p, other)) continue;
-      const oa = data.allocations.find(a => a.id === other.allocationId);
-      for (const [same, label] of [[oa?.facultyId === a.facultyId, `Teacher ${faculty.name}`], [oa?.sectionId === a.sectionId, `Section ${section.code}`], [other.roomId === p.roomId, `Room ${room.code}`]] as const) {
-        if (same) add("OVERLAP", `${label} overlaps another class at ${clockTime(other.startMinute)}–${clockTime(other.endMinute)}.`);
-      }
-    }
-    const assigned = entries.filter(e => data.allocations.find(a => a.id === e.allocationId)?.facultyId === faculty.id);
-    const minutes = (es: Placement[]) => es.reduce((sum, e) => sum + e.endMinute - e.startMinute, 0);
-    if (minutes(assigned.filter(e => e.weekday === p.weekday)) > faculty.maxMinutesPerDay) add("DAILY_LIMIT", `${faculty.name} exceeds the ${faculty.maxMinutesPerDay}-minute daily limit.`);
-    if (minutes(assigned) > faculty.maxMinutesPerWeek) add("WEEKLY_LIMIT", `${faculty.name} exceeds the ${faculty.maxMinutesPerWeek}-minute weekly limit.`);
+  const add = (rule: string, message: string) => conflicts.push({ rule, seriesId: p.seriesId, message: `${days[p.weekday] ?? "Invalid day"} ${clockTime(p.startMinute)}–${clockTime(p.endMinute)}: ${message}` });
+  const a = data.allocations.find(a => a.id === p.allocationId), room = data.rooms.find(r => r.id === p.roomId);
+  const course = data.courses.find(c => c.id === a?.courseId), section = data.sections.find(s => s.id === a?.sectionId), faculty = data.faculty.find(f => f.id === a?.facultyId);
+  if (!a || a.archived || !room || room.archived || !course || course.archived || !section || section.archived || !faculty || faculty.archived || !faculty.active) { add("RESOURCE", "Choose available allocation, course, section, teacher and room records."); return conflicts; }
+  if (p.weekday < 1 || p.weekday > 5) add("DAY", "Initial timetables allow Monday–Friday only.");
+  const count = slotSpan(p, data);
+  if (!count || p.endMinute <= p.startMinute) add("SLOTS", "Use complete, consecutive teaching slots without a break.");
+  if (course.type === "LAB" && (room.type !== "LAB" || count < 2)) add("LAB", `${course.code} needs a laboratory and at least two consecutive slots.`);
+  if (room.capacity < section.strength) add("CAPACITY", `Room ${room.code} holds ${room.capacity}; section ${section.code} needs ${section.strength}.`);
+  if (!data.qualifications.some(q => !q.archived && q.facultyId === faculty.id && q.courseId === course.id)) add("QUALIFICATION", `${faculty.name} is not qualified for ${course.code}.`);
+  let coveredUntil = p.startMinute;
+  for (const interval of data.availability.filter(v => !v.archived && v.facultyId === faculty.id && v.weekday === p.weekday).sort((a, b) => a.startMinute - b.startMinute)) {
+    if (interval.startMinute <= coveredUntil && interval.endMinute > coveredUntil) coveredUntil = interval.endMinute;
   }
+  if (coveredUntil < p.endMinute) add("AVAILABILITY", `${faculty.name} is unavailable for the full interval.`);
+  for (const other of others) {
+    if (other.weekday !== p.weekday || !overlaps(p, other)) continue;
+    const oa = data.allocations.find(a => a.id === other.allocationId);
+    for (const [same, label] of [[oa?.facultyId === a.facultyId, `Teacher ${faculty.name}`], [oa?.sectionId === a.sectionId, `Section ${section.code}`], [other.roomId === p.roomId, `Room ${room.code}`]] as const) {
+      if (same) add("OVERLAP", `${label} overlaps another class at ${clockTime(other.startMinute)}–${clockTime(other.endMinute)}.`);
+    }
+  }
+  const assigned = [p, ...others.filter(e => data.allocations.find(a => a.id === e.allocationId)?.facultyId === faculty.id)];
+  const minutes = (es: Placement[]) => es.reduce((sum, e) => sum + e.endMinute - e.startMinute, 0);
+  if (minutes(assigned.filter(e => e.weekday === p.weekday)) > faculty.maxMinutesPerDay) add("DAILY_LIMIT", `${faculty.name} exceeds the ${faculty.maxMinutesPerDay}-minute daily limit.`);
+  if (minutes(assigned) > faculty.maxMinutesPerWeek) add("WEEKLY_LIMIT", `${faculty.name} exceeds the ${faculty.maxMinutesPerWeek}-minute weekly limit.`);
   return conflicts;
 }
 export function completeness(entries: Placement[], data: SchedulingData, semesterId: string): Conflict[] {

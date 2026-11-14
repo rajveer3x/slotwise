@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Features 012–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Feature 012 adds bounded weekly timetable generation, proposal review and import into the existing draft editor. Features 013–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -27,7 +27,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 
 ## Optional backlog
 
-012 timetable generator; 013 CSV import/export; 014 makeup voting; 015 calendar feeds; 016 what-if simulator; 017 emergency cover mode. All are not started and outside the default MVP. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
+012 timetable generator is implemented and verified locally. 013 CSV import/export, 014 makeup voting, 015 calendar feeds, 016 what-if simulator and 017 emergency cover mode remain outside the default MVP. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
 
 ## Decisions and assumptions
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Use the README walkthrough to demo the verified MVP. Optional features require a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Use the README walkthroughs to demo the verified MVP and optional timetable generation. Further optional features require a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -855,3 +855,30 @@ The first build surfaced a test assertion that failed TypeScript union narrowing
 | `npm run check:client-bundle` | 43 bundles checked without Prisma, database URLs or configured secret values. |
 
 Next step: demo the local MVP using the README. Optional features 012–017 remain outside this request.
+
+## Feature 012 handoff — 2026-11-14
+
+**Status:** implemented. All four acceptance criteria verified with engine fixtures, PostgreSQL and the focused Chrome flow.
+
+- `src/domain/scheduling/generation.ts` implements seeded difficulty ranking, greedy placement, bounded backtracking and local quality improvements. It shares weekly hard constraints with `src/domain/scheduling/timetable.ts`. Quality measures same-allocation class pairs on one day and theory use of labs. The 400 ms deadline, deterministic work budget and cooperative cancellation produce separate search and coverage states. Existing published weekly placements and their series IDs are held fixed. The editor remains available for manual moves.
+- `src/app/api/timetable/generate/route.ts` and `src/server/services/timetable-generation.ts` provide scoped computation and an actor-bound signed proposal. Import rechecks the revision and input under the shared locks, then commits a draft, an audit event and a retry receipt atomically. `src/server/services/scheduling-store.ts` supplies bounded reads and `src/server/services/audit.ts` exposes safe generation metadata. Generation and import create no reservations, occurrences, delivery records or notifications. Weekly completeness and current dated checks still gate every publication.
+- `src/features/timetable/generation-{panel,schema,actions}.*` and the protected Timetable page handle effective date, seed, pending/cancel, empty, error and stale states, proposal quality, placements and unresolved allocations. The draft review uses the existing editor. React/Next.js concepts include a controlled Client Component, cancellation with `AbortController`, a Route Handler with `Request.signal`, and a Server Action that revalidates routes after a successful transaction.
+- Verification fixtures are synthetic. The seeded Computing semester placed 22 of 22 periods across eight allocations, 30 slots and three rooms in one 11 ms engine run with seed 42. The feasible 2-allocation, 6-period fixture with 24 slots and three rooms took 6 ms. The constrained version with 12 slots kept 5 of 6 periods in 16 ms. The controlled-clock fixture verified timeout with incomplete coverage. Separate fixtures verified work-limit exit, cancellation, backtracking, odd-length labs and matching results when input rows are reordered. These measurements describe individual runs.
+- PostgreSQL verified concurrent same-key imports, rejected altered or cross-account proposals, current-role and department denial, unchanged reservations before publication, partial/stale publication rejection and stable published series IDs after generation. Chrome exercised keyboard proposal review, opening the editor, dated preview, pending/cancel, stale refresh, incomplete coverage and direct role denial. Reflow was checked at 320, 390, 768 and 1440 px with 200% CSS zoom and reduced motion. Inspected mobile and desktop captures and ran axe at both sizes.
+- Known limits: request-sized inputs, weekly constraints during generation, and dated checks in the publication preview. Wall-clock interruption can change how far a run gets. The bounded search makes no infeasibility or optimality claim. A manual screen-reader session was not run.
+- The README has the coordinator demo. Further optional features require a separate request.
+- Full browser regression runs exposed two timing races in inherited tests. The five-role walkthrough now waits for the invitation button to become enabled, and the delivery walkthrough waits for the sign-out redirect before signing in again. Both affected scenarios passed after their test fixes.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check` | Passed on Node 24.22.3. |
+| `npm test` | 60/60 passed. |
+| `npm run test:integration` | 123/123 passed against isolated PostgreSQL. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 95/95 passed on the final full run, including both new generator flows. |
+| `npm run db:validate`, `npm run db:check`, `npm run check:client-bundle` | Passed. Checked 44 bundles. No migration required. |
+
+## Feature 012 verification before GitHub push — 2026-11-14
+
+- Rechecked complete and partial proposals, timeout and cancellation, deterministic ordering, draft import authorization and idempotency, and the editor's stale and incomplete publication guards. Two concurrent read-only runs on the seeded Computing semester matched placements, allocation coverage and quality counts. Both placed 22 of 22 weekly periods across eight allocations, in 17 ms and 15 ms of engine time, and created no drafts.
+- Fresh Node 24.22.3 checks passed: `npm run typecheck`, `npm run lint`, `npm run build`, `npm test` (60/60), `npm run test:integration` (123/123) and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (95/95). Database validation, connectivity, all 14 migrations current and an empty Prisma schema diff were confirmed. The client bundle check passed across 44 bundles.
+- Checked the 22 feature files for configured secret values and credential patterns and ran staged whitespace checks. The local and remote branches matched before the feature commit. The coordinator walkthrough is in the README.

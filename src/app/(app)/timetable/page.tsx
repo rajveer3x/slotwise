@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePageSession } from "@/server/auth/page-session";
 import { AccessError } from "@/server/auth/session";
 import { readTimetable } from "@/server/services/timetable";
+import { GenerationPanel } from "@/features/timetable/generation-panel";
 import { CreateDraft, DraftEditor } from "@/features/timetable/components";
 import { addDays, clockTime, days, localDate, weekday, weekOf } from "@/domain/scheduling/timetable";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,11 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
         <section className="timetable-mobile" aria-label="Published weekly agenda">{teachingDays.map(d => <div key={d} className="mb-4"><h3 className="mb-2 font-semibold">{days[d]} · {addDays(week, d - 1)}</h3>{rows.filter(o => weekday(o.localDate) === d).map(o => <PublishedBlock key={o.id} occurrence={o} />)}{!rows.some(o => weekday(o.localDate) === d) && <p>No published classes.</p>}</div>)}</section>
       </>}
     </section>}
-    {snapshot.canEdit && <div className="mt-8"><CreateDraft semester={semester} today={snapshot.today} /></div>}
+    {snapshot.canEdit && <div className="mt-8 grid gap-6">
+      {!draft && <GenerationPanel key={semester.id} semester={semester} today={snapshot.today}
+        hasAllocations={!!data?.allocations.some(a => a.semesterId === semester.id && !a.archived)} />}
+      <CreateDraft semester={semester} today={snapshot.today} />
+    </div>}
   </main>;
 }
 function PublishedBlock({ occurrence: o }: { occurrence: Awaited<ReturnType<typeof readTimetable>>["occurrences"][number] }) {

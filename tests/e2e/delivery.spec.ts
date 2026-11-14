@@ -35,7 +35,9 @@ test("assigned faculty confirms held using keyboard; coordinator ledger shows 60
   await page.getByText("Delivery history (1)").click(); await expect(page.getByText("Held · 60 min · Current")).toBeVisible();
   expect(await db.deliveryRecord.count({ where: { obligationId: f.obligationId, current: true, status: "HELD" } })).toBe(1);
   await page.goto("/classes-owed"); await expect(page.getByRole("heading", { name: "Access denied" })).toBeVisible();
-  await page.getByRole("button", { name: "Sign out", exact: true }).click(); await login(page); await page.goto("/classes-owed");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await login(page); await page.goto("/classes-owed");
   await expect(ledgerRow(page).getByRole("cell")).toHaveText(["240 min", "60 min", "60 min", "180 min", "0 min"]);
 });
 test("coordinator can confirm an ended class with an audit reason", async ({ page }) => {

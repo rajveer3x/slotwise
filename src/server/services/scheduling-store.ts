@@ -6,17 +6,18 @@ export class ScheduleError extends Error {
   constructor(public code: string, message: string, public conflicts: { rule: string; seriesId: string; message: string }[] = []) { super(message); }
 }
 export type Tx = Prisma.TransactionClient;
-export async function schedulingData(tx: Tx, departmentId: string): Promise<SchedulingData> {
-  const where = { departmentId };
+export async function schedulingData(tx: Tx, departmentId: string, generation?: { semesterId: string; take: number }): Promise<SchedulingData> {
+  const where = { departmentId, archived: generation ? false : undefined };
+  const take = generation?.take;
   // A transaction owns one PostgreSQL connection; keep driver queries sequential.
-  const allocations = await tx.courseAllocation.findMany({ where });
-  const courses = await tx.course.findMany({ where });
-  const sections = await tx.section.findMany({ where });
-  const faculty = await tx.faculty.findMany({ where, include: { user: { select: { name: true, active: true, role: true } } } });
-  const rooms = await tx.room.findMany({ where });
-  const qualifications = await tx.facultyQualification.findMany({ where });
-  const availability = await tx.facultyAvailability.findMany({ where });
-  const slots = await tx.timeSlot.findMany({ where });
+  const allocations = await tx.courseAllocation.findMany({ where: { ...where, semesterId: generation?.semesterId }, take });
+  const courses = await tx.course.findMany({ where, take });
+  const sections = await tx.section.findMany({ where, take });
+  const faculty = await tx.faculty.findMany({ where, take, include: { user: { select: { name: true, active: true, role: true } } } });
+  const rooms = await tx.room.findMany({ where, take });
+  const qualifications = await tx.facultyQualification.findMany({ where, take });
+  const availability = await tx.facultyAvailability.findMany({ where, take });
+  const slots = await tx.timeSlot.findMany({ where, take });
   return { allocations, courses, sections, faculty: faculty.map(f => ({ id: f.id, name: f.user.name, archived: f.archived, active: f.user.active && ["FACULTY", "HOD"].includes(f.user.role), maxMinutesPerDay: f.maxMinutesPerDay, maxMinutesPerWeek: f.maxMinutesPerWeek })), rooms, qualifications, availability, slots };
 }
 export const occurrenceInclude = { entry: { include: { timetableVersion: true } }, teachingObligation: true } as const;

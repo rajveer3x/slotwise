@@ -69,6 +69,12 @@ Choose **Preview publication**, review every dated Before/After change and recip
 
 The existing demo semester ends on 18 December 2026. After that date, configure a new semester and allocations in Master data; the seed does not reset dates or overwrite edits. Tests use independently authored future fixtures, not a seeded published timetable. Open Notifications to see published updates. Staff can inspect the draft and publication events in Audit.
 
+## Generated timetable demo (012)
+
+Sign in as a departmental coordinator or administrator and open **Timetable** on the published schedule view. Select a current or future semester, choose an effective date, enter a seed such as **42**, and choose **Generate proposal**. Review weekly placements, pending allocations and the two quality counts. Choose **Open as draft** to edit placements and use **Preview publication**. Repair any incomplete allocations before preview can succeed. Preview checks dated conflicts, approved leave, holidays and schedule freshness before the separate publish action.
+
+Generation treats the latest published weekly placements as fixed. If a proposal becomes stale, refresh the semester and generate again. The PostgreSQL and browser fixtures exercise both complete and partial results without changing the local demo data.
+
 ## Leave demo
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
@@ -215,4 +221,4 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 012–017 require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 013–017 require a separate request.

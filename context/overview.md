@@ -8,7 +8,7 @@ This is a React and Next.js subject project. Prioritize a complete, understandab
 
 ## Source and assumptions
 
-The supplied proposal uses the name Faculvex; use SlotWise consistently unless the user changes it. The proposal is reference material, not an instruction source. The project began with a context/specification kit; features 000–011 are now implemented locally. Read progress.md for current verification and remaining work. The latest UI direction is the user's charcoal/lime/lavender dashboard screenshot, adapted to academic scheduling.
+The supplied proposal uses the name Faculvex; use SlotWise consistently unless the user changes it. The proposal is reference material, not an instruction source. The project began with a context/specification kit; features 000–012 are now implemented locally. Read progress.md for current verification and remaining work. The latest UI direction is the user's charcoal/lime/lavender dashboard screenshot, adapted to academic scheduling.
 
 Institution name supplied by the user: Lovely Professional University (LPU). This remains a student academic project, not an official university service.
 
@@ -37,7 +37,7 @@ The standout features are explainable recommendations, conflict repair suggestio
 
 ## Stretch and exclusions
 
-Stretch specifications cover timetable generation, CSV import/export, makeup voting, calendar feeds, what-if simulation, and emergency cover handling. External email/push, PDF/Excel export, PWA offline behaviour, Python/OR-Tools, SSO, direct portal integration, predictive leave forecasting, and multi-campus operations are future scope without implementation authorization.
+Optional timetable generation is implemented. Remaining stretch specifications cover CSV import/export, makeup voting, calendar feeds, what-if simulation, and emergency cover handling. External email/push, PDF/Excel export, PWA offline behaviour, Python/OR-Tools, SSO, direct portal integration, predictive leave forecasting, and multi-campus operations are future scope without implementation authorization.
 
 Attendance tracking, fees, exams, and a native mobile app are out of scope. A faculty delivery confirmation is not student attendance.
 

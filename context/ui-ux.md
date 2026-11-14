@@ -268,3 +268,7 @@ The ledger is coordinator/HoD/admin only and defines required, delivered, future
 ## Implemented audit UI (011)
 
 `/audit` reuses the protected shell, shared form controls and inherited workspace loading and error boundaries. The GET form filters by actor, action, entity ID and inclusive local dates. The chronological table scrolls in a labelled keyboard-focusable region on narrow screens. Event links open stacked or side-by-side Before and After details with timestamps and any approved staff audit reason.
+
+## Implemented timetable generation UI (012)
+
+The manager-only generator panel on `/timetable` uses the existing schedule panel, Button and Input. Enter a seed and effective date, then review separate search status and weekly coverage, the unresolved allocation list, quality counts and the expandable placement list. Cancelling clears the pending request. Stale proposals require a refresh and new search. **Open as draft** commits the proposal to the existing editor for manual repair and dated publication preview.
