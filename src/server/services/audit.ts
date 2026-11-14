@@ -37,6 +37,7 @@ const consent = { status };
 const exception = { ...consent, reason: z.string().max(1000) };
 const delivery = { status, recordId: id.nullable(), obligationId: id, minutes: integer, schedulingStatus: status, reason: z.string().max(1000) };
 const publication = { ...revision, changes: z.array(assignment), unresolvedIds: z.array(id) };
+const poll = { status: z.enum(["OPEN", "CLOSED", "CANCELLED", "SUPERSEDED"]), options: integer };
 
 // Stored JSON is never rendered directly. Each action gets its own approved fields,
 // including at nested levels. Staff-entered audit reasons are approved only here.
@@ -51,6 +52,11 @@ const actions = {
   LEAVE_REJECTED: ["Leave rejected", leave],
   RESOLUTION_DRAFT_SAVED: ["Recovery draft saved", { ...version, ...revision, selected: integer }],
   RESOLUTION_PUBLISHED: ["Recovery published", publication],
+  MAKEUP_POLL_OPENED: ["Makeup poll opened", poll],
+  MAKEUP_POLL_CLOSED: ["Makeup poll closed", poll],
+  MAKEUP_POLL_CANCELLED: ["Makeup poll cancelled", poll],
+  MAKEUP_POLL_SUPERSEDED: ["Makeup poll superseded", poll],
+  MAKEUP_PREFERENCE_SAVED: ["Makeup preference saved", {}],
   COVER_INVITED: ["Cover invited", consent],
   COVER_ACCEPTED: ["Cover accepted", consent],
   COVER_DECLINED: ["Cover declined", consent],

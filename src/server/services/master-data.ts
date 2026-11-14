@@ -89,6 +89,10 @@ async function validateRelations(tx: Tx, kind: Kind, data: Record<string, unknow
     const section = await tx.section.findUniqueOrThrow({ where: { id: String(data.sectionId) } });
     const memberships = await tx.sectionMembership.findMany({ where: { departmentId, userId: String(data.userId), archived: false, id: { not: existing?.id ?? "" } }, include: { section: true } });
     if (memberships.some(m => m.section.semesterId === section.semesterId)) invalid("userId", "A student may belong to only one section per semester.");
+    if (data.isRepresentative && await tx.sectionMembership.findFirst({
+      where: { departmentId, sectionId: section.id, archived: false, isRepresentative: true, id: { not: existing?.id ?? "" } },
+      select: { id: true },
+    })) invalid("isRepresentative", "Clear the existing section representative before designating a replacement.");
   }
   if (kind === "facultyAvailability" || kind === "timeSlot") {
     const intervals = await repo(tx, kind).findMany({ where: { departmentId, archived: false, weekday: data.weekday, ...(kind === "facultyAvailability" ? { facultyId: data.facultyId } : {}) } });

@@ -1,10 +1,10 @@
 # SlotWise progress
 
-Last updated: 2026-11-14
+Last updated: 2026-11-15
 
 ## Verified current state
 
-Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Feature 012 adds bounded weekly timetable generation, proposal review and import into the existing draft editor. Feature 013 adds department-scoped CSV templates, read-only row preview, atomic import and published timetable export. Features 014–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Feature 012 adds bounded weekly timetable generation, proposal review and import into the existing draft editor. Feature 013 adds department-scoped CSV templates, read-only row preview, atomic import and published timetable export. Feature 014 adds advisory weekday makeup voting with one replaceable preference from the designated section representative and reuses validated recovery publication. Features 015–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -27,7 +27,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 
 ## Optional backlog
 
-012 timetable generation and 013 CSV import/export are implemented and verified locally. 014 makeup voting, 015 calendar feeds, 016 what-if simulation and 017 emergency cover mode remain optional. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
+012 timetable generation, 013 CSV import/export and 014 makeup voting are implemented locally. 015 calendar feeds, 016 what-if simulation and 017 emergency cover mode remain optional. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
 
 ## Decisions and assumptions
 
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Use the README walkthroughs to demo the verified MVP, optional timetable generation and CSV import/export. Further optional features require a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Use the README walkthroughs to demo the verified MVP, optional timetable generation, CSV import/export and makeup voting. Further optional features require a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -903,3 +903,26 @@ Next step: demo the local MVP using the README. Optional features 012–017 rema
 | `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 97/97 passed, including both CSV flows. |
 
 Next step is to demo feature 013 using the README. Further optional features require a separate request.
+
+## Feature 014 handoff — 2026-11-15
+
+**Status:** implemented locally. All four acceptance criteria were verified against PostgreSQL and the production-build Chrome flows.
+
+- `prisma/schema.prisma` and migration `20261115000000_makeup_voting` add MakeupPoll, immutable option snapshots and one current PollVote per poll. Scoped foreign keys bind votes to their original poll options. The partial unique index prevents competing open polls for one obligation. The migration is additive and was applied to both local databases.
+- `src/server/services/makeup-polls.ts`, `src/features/makeup-polls/`, `/makeup-polls`, and the existing Resolutions board add two or three current tier-3 choices, a future deadline before the earliest offered start, scoped voting and poll history. Opening a replacement supersedes the earlier poll and retains its options and preference. Managers can close or cancel an open poll. An unanswered poll leaves the choice to the coordinator. Master data rejects a second unarchived representative, and legacy ambiguous designations fail closed.
+- Vote writes reload the current actor and membership, serialize with other department writes, reject the exact deadline and roll back if the deadline passes during the write. Concurrent vote changes retain one current preference. Successful retries replay their original receipt after scope checks. Poll lifecycle and preference-save events are auditable without recording the preference in general audit details.
+- **Review in Class recovery → Check preferred option** recomputes the exact choice through the existing board. A valid choice still needs a saved draft, explicit Before / After review and current publication checks. A test added a holiday after preview and verified publication rejection with a recompute message and no partial schedule write. The valid Chrome flow published a tier-3 class with delivery pending. Poll operations themselves create no reservations, deliveries or schedule notifications.
+- Synthesized 2099 test scenarios reuse `tests/support/resolution-fixture.ts` in the isolated database. The local demo uses the seeded Computing representative and an unresolved class with weekday options. Chrome checked keyboard voting and publication, active and closed cards, failed requests with retained choices, pending state and stale recovery feedback. It checked representative reflow at 320, 390, 768 and 1440 px, 200% CSS zoom and reduced motion. Inspected mobile representative and desktop coordinator screenshots. Automated axe scans passed on both views. Manual screen-reader testing was outside the checks.
+- Expiry and resolved-source closure are derived when reading or attempting a vote. Open pages refresh on navigation or when prompted by stale feedback. Polls are discovered through the Makeup polls workspace. Option snapshots can include different rooms at the same time when both are current weekday alternatives.
+- React/Next.js concepts include scoped App Router Server Component reads, a controlled radio group and pending/error state in Client Components, and authorized Server Actions with route revalidation after commit.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check` | Passed on Node 24.22.3. Build includes dynamic `/makeup-polls`. |
+| `npm test` | 60/60 passed. |
+| `npm run test:integration` | 134/134 passed, including four feature 014 cases. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 99/99 passed, including both feature 014 workflows. |
+| `npm run db:migrate`, `npm run db:test:migrate`, `npm run db:validate`, `npm run db:check` | Passed. Both databases received migration 015. Prisma's schema diff was empty. |
+| `npm run check:client-bundle` | Passed across 47 bundles. |
+
+Next step: use the README makeup voting walkthrough. Further optional features require a separate request.

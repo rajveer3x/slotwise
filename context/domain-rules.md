@@ -24,6 +24,7 @@ Store actual class instants as timezone-aware timestamps and user-entered leave/
 | ResolutionPlan / Item | approved leave or not-held source occurrence, baseScheduleRevision, policy snapshot, status; affected occurrence, tier, selected candidate, explanation and rejected alternatives |
 | SubstitutionRequest | plan item, invited faculty, proposed interval, status, expiry, response time |
 | SaturdayException | plan item, HOD reviewer, status, reason, approved candidate fingerprint |
+| MakeupPoll / MakeupPollOption / PollVote | unresolved obligation, immutable weekday options, base revision, deadline, lifecycle status and at most one current preference |
 | DeliveryRecord | obligation/occurrence, confirmed minutes, confirming faculty/coordinator, timestamp; corrections audited |
 | Notification / Acknowledgement | recipient, published change ID, safe payload, readAt; unique recipient + change acknowledgement |
 | AuditEvent / MutationReceipt | actor, action, scoped entity, safe before/after, reason, time; idempotency key and payload fingerprint |
@@ -43,6 +44,8 @@ Implement schema incrementally by feature. Add foreign keys, uniqueness and inde
 | View timetable | Staff within scope; students only their section |
 | View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration. FACULTY may view their own workload |
 | View private leave reasons | Requesting faculty and authorized HOD only |
+| Manage makeup polls | ADMIN or department COORDINATOR |
+| View and vote in a section poll | Its designated active student representative. Department managers can view results. |
 | Read notifications/acknowledge | Recipient only |
 | Read acknowledgement totals | ADMIN or department COORDINATOR |
 
@@ -83,6 +86,14 @@ For weekday slots use a versioned integer score: +30 if it fills a section gap, 
 Plan states: DRAFT -> READY -> PUBLISHED or SUPERSEDED. Only fully valid, explicitly selected items may publish. For MVP publication is all-or-nothing for the selected subset; unselected unresolved items remain visible. Publishing a subset advances the revision and invalidates remaining old previews. Match accepted cover requests and Saturday approvals to the exact candidate fingerprint; a changed candidate needs a new response/approval.
 
 Core cover invites are coordinator-initiated with configurable expiry, default 24 hours capped by class start; skip requests that are already expired. Multiple accepts for one class cannot become multiple assignments. Acceptance rechecks timing and eligibility but does not reserve resources; publication rechecks again and may invalidate an accepted option if resources changed. Explain this distinction in the UI. The optional emergency feature adds short simultaneous-offer expiry.
+
+## Advisory makeup voting
+
+Each section can have one unarchived representative designation. The student account must be active to vote. Managers clear or archive the old designation before appointing a replacement. Any pre-existing ambiguous designation blocks voting until corrected.
+
+Managers offer two or three current tier-3 weekday candidates for one unresolved obligation. The deadline must precede all offered starts. Votes may be replaced until the deadline, which is exclusive, or until the poll is closed, cancelled, superseded or the class is resolved. Changing the set of options creates a new poll and preserves the previous snapshots and preference. A closed poll with no response leaves the choice to the coordinator.
+
+Votes express a preference. They produce no reservations, timetable changes, attendance or delivery credit. A coordinator may carry the exact offered candidate into the normal draft and must run the current scheduling preview and publication checks. A stale candidate requires recomputation.
 
 ## Notifications
 

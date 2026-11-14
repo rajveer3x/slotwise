@@ -8,28 +8,36 @@ import type { ResolutionWorkspace } from "@/server/services/resolutions";
 import type { Board, ResolutionResult } from "./schema";
 import { RequestSelectedConsent, statusLabel } from "@/features/covers/components";
 import { PublicationReview } from "@/features/publications/components";
+import { OpenPollForm } from "@/features/makeup-polls/components";
+import type { readPollPreference } from "@/server/services/makeup-polls";
 import { resolutionAction } from "./actions";
 
-export function ResolutionWorkspaceView({ workspace: w }: { workspace: ResolutionWorkspace }) {
+type PollContext = {
+  preference?: Awaited<ReturnType<typeof readPollPreference>>;
+  latestPolls: Record<string, string>;
+};
+export function ResolutionWorkspaceView({ workspace: w, preference, latestPolls, pollId }:
+  PollContext & { workspace: ResolutionWorkspace; pollId?: string }) {
   return <>
     <nav aria-label="Approved leave" className="my-6"><h2 className="mb-3 font-semibold">Approved leave</h2>{w.requests.length ? <ul className="grid gap-2">{w.requests.map(r => <li key={r.id}><Link className="inline-link" href={`/resolutions?leave=${encodeURIComponent(r.id)}`} aria-current={w.leaveId === r.id ? "page" : undefined}>{r.faculty.user.name} · {r.startDate} to {r.endDate}</Link></li>)}</ul> : <p className="schedule-panel">No approved leave yet. Not-held classes can be recovered separately below.</p>}</nav>
     <nav aria-label="Not-held recovery" className="my-6"><h2 className="mb-3 font-semibold">Not-held classes</h2>{w.missed.length ? <ul className="grid gap-2">{w.missed.map(r => <li key={r.id}><Link className="inline-link" href={`/resolutions?leave=${encodeURIComponent(r.id)}`} aria-current={w.leaveId === r.id ? "page" : undefined}>{r.teachingObligation.allocation.course.code} · {r.faculty.user.name} · {r.localDate} · Not held</Link></li>)}</ul> : <p>No unresolved not-held classes. Ordinary missed classes remain separate from leave.</p>}</nav>
-    {w.board && w.leaveId && <ResolutionBoard key={w.leaveId} initial={w.board} leaveId={w.leaveId} />}
+    {w.board && w.leaveId && <ResolutionBoard key={`${w.leaveId}/${pollId ?? ""}`} initial={w.board} leaveId={w.leaveId} preference={preference} latestPolls={latestPolls} />}
   </>;
 }
 function AssignmentView({ a, board }: { a: Assignment; board: Board }) {
   const label = (id: string) => board.labels[id] ?? "Unavailable record";
   return <span className="my-2 block text-sm"><span className="block font-medium">{label(a.allocationId)}</span><span className="block">{a.date} · {clockTime(a.startMinute)}–{clockTime(a.endMinute)}</span><span className="block">{label(a.facultyId)} · {label(a.sectionId)} · {a.roomId ? label(a.roomId) : "Online · no room required"}</span></span>;
 }
-function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string }) {
+function ResolutionBoard({ initial, leaveId, preference, latestPolls }: PollContext & { initial: Board; leaveId: string }) {
   const [board, setBoard] = useState(initial), [decisions, setDecisions] = useState<Decisions>(initial.decisions);
-  const [active, setActive] = useState(initial.items[0]?.original.occurrenceId), [feedback, setFeedback] = useState<ResolutionResult>();
+  const [active, setActive] = useState(preference?.occurrenceId ?? initial.items[0]?.original.occurrenceId), [feedback, setFeedback] = useState<ResolutionResult>();
   const [needsCompute, setNeedsCompute] = useState(false), [pending, startTransition] = useTransition();
   const [rejectionLimit, setRejectionLimit] = useState(20);
   const busy = useRef(false), requestId = useRef<string | null>(null);
   const item = board.items.find(i => i.original.occurrenceId === active) ?? board.items[0];
   const newerPage = initial.revisions.some(r => r.scheduleRevision > (board.revisions.find(b => b.id === r.id)?.scheduleRevision ?? -1));
   const stale = board.stale || newerPage || feedback?.code === "STALE_VERSION";
+  const pollChoicesUnsaved = JSON.stringify(decisions) !== JSON.stringify(initial.decisions);
   function run(operation: "compute" | "save", next = decisions) {
     if (busy.current) return;
     busy.current = true;
@@ -58,6 +66,7 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
     setDecisions(next); setNeedsCompute(true); requestId.current = null; run("compute", next);
   }
   const selectedCount = board.items.filter(i => i.selected).length;
+  const preferredItem = board.items.find(i => i.original.occurrenceId === preference?.occurrenceId);
   return <section aria-labelledby="board-heading" aria-busy={pending}>
     <h2 id="board-heading" className="text-xl font-semibold">Resolution board</h2>
     <p className="my-3">Draft only · {selectedCount} selected · {board.items.filter(i => !i.candidates.length).length} without a valid option · {board.items.length} affected classes</p>
@@ -67,6 +76,18 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
     <p role="status" className={feedback?.ok ? "mb-4 text-success" : "mb-4 text-danger"}>{feedback?.message}</p>
     {stale && <p role="status" className="mb-4 text-warning">This draft is stale. Recompute and review retained choices before saving.</p>}
     {needsCompute && <p className="mb-4 text-warning">Choices changed. Recompute to validate this batch before saving.</p>}
+    {preference && <section className="schedule-panel mb-4 grid gap-3" aria-label="Advisory poll result">
+      <h3 className="font-semibold">Advisory poll result</h3>
+      {!preference.candidateId ? <p>No current preference to carry into the draft.</p> : !preferredItem ? <p className="text-warning">This class is no longer unresolved. Recompute to review current classes.</p> : <>
+        {preferredItem.selectionError && decisions.selected[preference.occurrenceId] === preference.candidateId
+          ? <p className="text-warning">The preferred option is no longer available in this batch. Recompute and choose a current option before publishing.</p>
+          : <p>Check the representative’s preference against current resources before saving a draft.</p>}
+        <div><Button variant="secondary" disabled={pending} onClick={() => {
+          const next = { ...decisions, selected: { ...decisions.selected, [preference.occurrenceId]: preference.candidateId! } };
+          setActive(preference.occurrenceId); setDecisions(next); setNeedsCompute(true); requestId.current = null; run("compute", next);
+        }}>Check preferred option</Button></div>
+      </>}
+    </section>}
     {!board.items.length ? <p className="schedule-panel">No classes to draft in this board. Review Not-held classes above for any missed replacements.</p> : <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <aside className="schedule-panel min-w-0" aria-label="Affected classes"><h3 className="mb-3 font-semibold">Affected classes</h3><ul className="grid gap-3">{board.items.map(i => <li key={i.original.occurrenceId}><button disabled={pending} aria-pressed={item?.original.occurrenceId === i.original.occurrenceId} onClick={() => { setActive(i.original.occurrenceId); setRejectionLimit(20); }} className={`w-full rounded-control border p-3 text-left ${item?.original.occurrenceId === i.original.occurrenceId ? "border-primary bg-primary-tint" : "border-border-control"}`}><AssignmentView a={i.original} board={board} /><span className="text-sm">{i.selectionError ? "Selection needs review" : i.selected ? "Selected · pending publication" : i.tier ? `${tierNames[i.tier]} available · unselected` : "Unresolved"}</span></button></li>)}</ul></aside>
       {item && <section className="schedule-panel min-w-0" aria-labelledby="candidates-heading"><h3 id="candidates-heading" className="text-lg font-semibold">Candidates for selected class</h3><AssignmentView a={item.original} board={board} />
@@ -76,6 +97,8 @@ function ResolutionBoard({ initial, leaveId }: { initial: Board; leaveId: string
         {item.selectionError && <p role="status" className="my-3 text-danger">{item.selectionError}</p>}
         {decisions.selected[item.original.occurrenceId] && <Button variant="secondary" disabled={pending} onClick={() => choose()}>Clear selection</Button>}
         <div className="mt-4 grid gap-4">{item.candidates.map((c, index) => <CandidateCard key={c.id} candidate={c} rank={index + 1} selected={item.selected?.id === c.id} pending={pending} board={board} choose={() => choose(c)} reject={reason => reject(c, reason)} consent={item.selected?.id === c.id ? <RequestSelectedConsent board={board} leaveId={leaveId} candidate={c} disabled={pending || needsCompute || stale} onSuccess={() => { requestId.current = null; run("compute"); }} /> : undefined} />)}</div>
+        <OpenPollForm key={item.original.occurrenceId} item={item} board={board} sourceId={leaveId}
+          latestPollId={latestPolls[item.original.obligationId] ?? null} disabled={pending || needsCompute || stale || pollChoicesUnsaved || !!item.selectionError} />
         {!!board.history.filter(h => h.occurrenceId === item.original.occurrenceId).length && <details className="mt-4"><summary className="cursor-pointer py-3">Response and exception history</summary><ul className="grid gap-3">{board.history.filter(h => h.occurrenceId === item.original.occurrenceId).map(h => <li key={h.id}>{h.kind === "cover" ? "Cover" : "Saturday"} · {statusLabel[h.status]}{h.decisionReason && ` · ${h.decisionReason}`}{h.closedReason && ` · ${h.closedReason}`}</li>)}</ul><p className="mt-3 text-sm">Declined, expired and HoD-rejected candidates are excluded during recomputation; history survives draft edits.</p><Link className="inline-link" href="/cover-requests">Review invitations and exceptions</Link></details>}
         <details className="mt-5"><summary className="cursor-pointer py-3 font-medium">Rejected alternatives ({item.rejections.length}) and explanations</summary>
           {!item.rejections.length ? <p>No rejected alternatives in the searched tiers.</p> : <><ul className="grid gap-3">{Object.entries(item.rejections.reduce<Record<string, number>>((counts, r) => { for (const code of r.codes) counts[code] = (counts[code] ?? 0) + 1; return counts; }, {})).map(([code, count]) => <li key={code}>{rejectionLabels[code] ?? code}: {count}</li>)}</ul><p className="my-3 text-sm">Showing up to {rejectionLimit} alternatives; totals above include all searched rejections. Later tiers are not searched while an earlier tier is usable.</p><ul className="grid gap-3">{item.rejections.slice(0, rejectionLimit).map((r, index) => <li key={index} className="border-t border-border-subtle pt-2"><p className="font-medium">{tierNames[r.tier]}</p>{r.proposed && <AssignmentView a={r.proposed} board={board} />}<p className="text-sm">{r.codes.map(code => rejectionLabels[code] ?? code).join("; ")}{r.reason && ` · Reason: ${r.reason}`}</p></li>)}</ul>{rejectionLimit < item.rejections.length && <Button variant="secondary" disabled={pending} onClick={() => setRejectionLimit(n => n + 20)}>Show more rejected alternatives</Button>}</>}

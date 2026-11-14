@@ -48,6 +48,7 @@ model Department {
   saturdayExceptions SaturdayException[]
   deliveryRecords DeliveryRecord[]
   publications SchedulePublication[]
+  makeupPolls MakeupPoll[]
 
 }
 
@@ -70,6 +71,8 @@ model User {
   requestedExceptions SaturdayException[] @relation("ExceptionRequester")
   reviewedExceptions SaturdayException[] @relation("ExceptionReviewer")
   deliveryRecords DeliveryRecord[]
+  createdMakeupPolls MakeupPoll[]
+  makeupVotes PollVote[]
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -346,6 +349,7 @@ model TeachingObligation {
   @@unique([id, departmentId])
 }
 model ClassOccurrence {
+  makeupPolls MakeupPoll[]
   deliveryRecords DeliveryRecord[]
   recoveryPlans ResolutionPlan[] @relation("RecoverySource")
   resolutionItems ResolutionItem[]
@@ -381,7 +385,62 @@ model ClassOccurrence {
   leaveRequest LeaveRequest? @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict)
   @@index([entryId, localDate])
   @@unique([id, departmentId])
+  @@unique([id, departmentId, teachingObligationId], map: "ClassOccurrence_makeup_scope_key")
   @@index([departmentId, startAt, schedulingStatus])
+}
+
+enum MakeupPollStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+  SUPERSEDED
+}
+
+model MakeupPoll {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  occurrenceId String
+  obligationId String
+  occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId, obligationId], references: [id, departmentId, teachingObligationId], onDelete: Restrict, onUpdate: NoAction)
+  sourceId String
+  createdById String
+  createdBy User @relation(fields: [createdById, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  status MakeupPollStatus @default(OPEN)
+  baseScheduleRevision Int
+  deadline DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  options MakeupPollOption[]
+  vote PollVote?
+  @@unique([id, departmentId])
+  @@index([departmentId, createdAt, id])
+  @@index([obligationId, createdAt, id])
+}
+
+model MakeupPollOption {
+  pollId String
+  poll MakeupPoll @relation(fields: [pollId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  position Int
+  candidateId String
+  startAt DateTime @db.Timestamptz(3)
+  endAt DateTime @db.Timestamptz(3)
+  facultyName String
+  roomCode String
+  votes PollVote[]
+  @@id([pollId, position])
+  @@unique([pollId, candidateId])
+}
+
+model PollVote {
+  pollId String @id
+  departmentId String
+  poll MakeupPoll @relation(fields: [pollId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  position Int
+  option MakeupPollOption @relation(fields: [pollId, position], references: [pollId, position], onDelete: Restrict, onUpdate: NoAction)
+  voterId String
+  voter User @relation(fields: [voterId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  votedAt DateTime @db.Timestamptz(3)
+  @@unique([pollId, departmentId])
 }
 model ResourceReservation {
   id String @id @default(cuid())

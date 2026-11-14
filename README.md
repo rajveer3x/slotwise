@@ -85,6 +85,19 @@ Generation treats the latest published weekly placements as fixed. If a proposal
 
 Each downloadable template contains ordered headers and one synthetic example row. Replace it with your own rows. Use UTF-8 CSV with up to 128 KiB and 300 data rows. Row numbers count CSV records from the header, so a quoted newline stays inside a single row. Imports create new records. Faculty profiles use the email of an existing eligible account. If a preview goes stale, preview the same file again to review it against current records.
 
+## Makeup voting demo (014)
+
+1. Begin with an unresolved class in **Resolutions** where **Weekday** is the first viable tier and at least two candidates are listed. The seeded Computing student `student@demo.slotwise.test` represents the first section. Verify or change the designation in **Master data → Memberships**.
+2. As coordinator, expand **Offer a representative poll**, choose two or three options and enter a future Asia/Kolkata deadline before the earliest offered class. Open the poll.
+3. As the representative, open **Makeup polls** from the sidebar. Save a preference, reload to confirm it persisted, then choose and save another option.
+4. Back as coordinator, open **Makeup polls** and close it, or wait for the deadline. Choose **Review in Class recovery** and **Check preferred option**. Save a valid draft and use the normal Before / After preview and publish buttons. If it became unavailable, recompute and choose a current option. A poll without a response leaves the choice to the coordinator.
+
+Polls are advisory. They create no reservations, change no classes and grant no delivery credit. The automated browser walkthrough creates its own synthetic tier-3 recovery scenario in the isolated PostgreSQL database:
+
+```sh
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/makeup-polls.spec.ts
+```
+
 ## Leave demo
 
 First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
@@ -231,4 +244,4 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 013–017 require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 015–017 require a separate request.
