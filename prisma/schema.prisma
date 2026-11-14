@@ -46,6 +46,7 @@ model Department {
   resolutionItems ResolutionItem[]
   substitutionRequests SubstitutionRequest[]
   saturdayExceptions SaturdayException[]
+  deliveryRecords DeliveryRecord[]
   publications SchedulePublication[]
 
 }
@@ -68,6 +69,7 @@ model User {
   requestedCovers SubstitutionRequest[] @relation("CoverRequester")
   requestedExceptions SaturdayException[] @relation("ExceptionRequester")
   reviewedExceptions SaturdayException[] @relation("ExceptionReviewer")
+  deliveryRecords DeliveryRecord[]
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -328,6 +330,7 @@ model TimetableEntry {
   @@unique([id, departmentId])
 }
 model TeachingObligation {
+  deliveryRecords DeliveryRecord[]
   substitutionRequests SubstitutionRequest[]
   id String @id @default(cuid())
   departmentId String
@@ -343,6 +346,8 @@ model TeachingObligation {
   @@unique([id, departmentId])
 }
 model ClassOccurrence {
+  deliveryRecords DeliveryRecord[]
+  recoveryPlans ResolutionPlan[] @relation("RecoverySource")
   resolutionItems ResolutionItem[]
   id String @id @default(cuid())
   departmentId String
@@ -469,8 +474,10 @@ model ResolutionPlan {
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  leaveRequestId String
-  leaveRequest LeaveRequest @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  leaveRequestId String?
+  leaveRequest LeaveRequest? @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  sourceOccurrenceId String?
+  sourceOccurrence ClassOccurrence? @relation("RecoverySource", fields: [sourceOccurrenceId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
   ownerId String
   owner User @relation(fields: [ownerId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
   status String @default("DRAFT")
@@ -483,6 +490,7 @@ model ResolutionPlan {
   publications SchedulePublication[]
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   @@unique([leaveRequestId, ownerId])
+  @@unique([sourceOccurrenceId, ownerId])
   @@unique([id, departmentId])
 }
 model ResolutionItem {
@@ -584,4 +592,25 @@ model SchedulePublication {
   occurrences ClassOccurrence[]
   @@unique([id, departmentId])
   @@index([departmentId, createdAt])
+}
+
+// Current records are replaced, never deleted, by a reasoned coordinator correction.
+model DeliveryRecord {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  obligationId String
+  obligation TeachingObligation @relation(fields: [obligationId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  occurrenceId String
+  occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  status DeliveryStatus
+  confirmedMinutes Int
+  confirmedById String
+  confirmedBy User @relation(fields: [confirmedById, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  reason String?
+  current Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  supersededAt DateTime? @db.Timestamptz(3)
+  @@index([departmentId, obligationId])
+  @@index([occurrenceId, createdAt])
 }

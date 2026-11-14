@@ -26,13 +26,23 @@ export async function estimateResolution(tx: Tx, departmentId: string, ids: stri
   const items = resolveBatch(s, decisions);
   return { possible: items.filter(i => i.selected).length, unresolved: items.filter(i => !i.selected).length, searchComplete: items.every(i => i.searchComplete), tiers: [1, 2, 3, 4, 5].map(tier => ({ tier, count: items.filter(i => i.selected?.tier === tier).length })) };
 }
+// The legacy wire field `leaveId` is a recovery-source key; ordinary missed
+// classes use their occurrence ID and retain a separate, explicit plan relation.
+export const recoveryPlanWhere = (sourceId: string) => ({ OR: [{ leaveRequestId: sourceId }, { sourceOccurrenceId: sourceId }] });
+export const recoverySourceId = (plan: { leaveRequestId: string | null; sourceOccurrenceId: string | null }) => plan.leaveRequestId ?? plan.sourceOccurrenceId!;
+export async function recoverySource(tx: Tx, departmentId: string, sourceId: string) {
+  const leave = await tx.leaveRequest.findFirst({ where: { id: sourceId, departmentId, status: "APPROVED" }, select: { id: true, semesterId: true, version: true } });
+  if (leave) return { ...leave, kind: "leave" as const };
+  const missed = await tx.classOccurrence.findFirst({ where: { id: sourceId, departmentId, deliveryRecords: { some: { status: "NOT_HELD" } } }, select: { id: true, teachingObligation: { select: { allocation: { select: { semesterId: true } } } } } });
+  if (!missed) throw new AccessError("FORBIDDEN");
+  return { id: missed.id, semesterId: missed.teachingObligation.allocation.semesterId, version: 0, kind: "not-held" as const };
+}
 export async function buildResolutionBoard(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>>, leaveId: string, override?: Decisions) {
   const departmentId = actor.departmentId;
-  const leave = await tx.leaveRequest.findFirst({ where: { id: leaveId, departmentId, status: "APPROVED" }, select: { id: true, semesterId: true, version: true } });
-  if (!leave) throw new AccessError("FORBIDDEN");
-  const rows = await tx.classOccurrence.findMany({ where: { departmentId, leaveRequestId: leaveId, schedulingStatus: "CANCELLED", deliveryStatus: "PENDING", resolved: false, replacement: null, teachingObligation: { occurrences: { none: { schedulingStatus: "ACTIVE" } } } }, select: { id: true } });
+  const leave = await recoverySource(tx, departmentId, leaveId);
+  const rows = await tx.classOccurrence.findMany({ where: { departmentId, ...(leave.kind === "leave" ? { leaveRequestId: leaveId, deliveryStatus: "PENDING", resolved: false } : { id: leaveId, deliveryStatus: "NOT_HELD" }), schedulingStatus: "CANCELLED", replacement: null, teachingObligation: { occurrences: { none: { OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } } } }, select: { id: true } });
   const s = await resolutionSnapshot(tx, departmentId, rows.map(o => o.id));
-  const plan = await tx.resolutionPlan.findUnique({ where: { leaveRequestId_ownerId: { leaveRequestId: leaveId, ownerId: actor.id } }, include: { items: true } });
+  const plan = await tx.resolutionPlan.findFirst({ where: { ...recoveryPlanWhere(leaveId), ownerId: actor.id, departmentId }, include: { items: true } });
   const saved: Decisions = { selected: {}, rejected: {} };
   for (const item of plan?.items ?? []) {
     if (!rows.some(row => row.id === item.occurrenceId)) continue;
@@ -41,7 +51,7 @@ export async function buildResolutionBoard(tx: Tx, actor: Awaited<ReturnType<typ
   }
   const decisions = override ?? saved;
   const ids = new Set(s.affected.map(o => o.occurrenceId));
-  if (override && [...Object.keys(override.selected), ...Object.keys(override.rejected)].some(id => !ids.has(id))) throw new ScheduleError("VALIDATION_ERROR", "A chosen class is no longer an unresolved item of this approved leave. Refresh the board.");
+  if (override && [...Object.keys(override.selected), ...Object.keys(override.rejected)].some(id => !ids.has(id))) throw new ScheduleError("VALIDATION_ERROR", "A chosen class is no longer an unresolved item of this recovery source. Refresh the board.");
   const history = await consentHistory(tx, departmentId, [...ids], new Date(s.now));
   const automatic = history.filter(h => ["DECLINED", "EXPIRED", "REJECTED"].includes(h.status));
   const effective: Decisions = { selected: decisions.selected, rejected: { ...decisions.rejected } };
@@ -60,8 +70,9 @@ export async function readResolutionWorkspace(actorId: string | null, leaveId?: 
   return getDb().$transaction(async tx => {
     const actor = await resolutionActor(tx, actorId);
     const requests = await tx.leaveRequest.findMany({ where: { departmentId: actor.departmentId, status: "APPROVED" }, select: { id: true, startDate: true, endDate: true, faculty: { select: { user: { select: { name: true } } } } }, orderBy: [{ startDate: "asc" }, { id: "asc" }] });
-    const selected = leaveId ?? requests[0]?.id;
-    return { requests, leaveId: selected ?? null, board: selected ? (await buildResolutionBoard(tx, actor, selected)).board : null };
+    const missed = await tx.classOccurrence.findMany({ where: { departmentId: actor.departmentId, deliveryStatus: "NOT_HELD", replacement: null, teachingObligation: { occurrences: { none: { OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } } } }, select: { id: true, localDate: true, faculty: { select: { user: { select: { name: true } } } }, teachingObligation: { select: { allocation: { select: { course: { select: { code: true } } } } } } }, orderBy: [{ startAt: "asc" }, { id: "asc" }] });
+    const selected = leaveId ?? requests[0]?.id ?? missed[0]?.id;
+    return { requests, missed, leaveId: selected ?? null, board: selected ? (await buildResolutionBoard(tx, actor, selected)).board : null };
   }, { isolationLevel: "RepeatableRead", timeout: 30000 });
 }
 export type ResolutionWorkspace = Awaited<ReturnType<typeof readResolutionWorkspace>>;
@@ -84,8 +95,7 @@ export async function changeResolution(actorId: string | null, input: unknown): 
       const actor = await resolutionActor(tx, actorId), departmentId = actor.departmentId;
       if (command.operation === "save") await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${departmentId} FOR UPDATE`;
       // Recheck entity scope before replaying even a successful receipt.
-      const scoped = await tx.leaveRequest.findFirst({ where: { id: command.leaveId, departmentId, status: "APPROVED" }, select: { id: true } });
-      if (!scoped) throw new AccessError("FORBIDDEN");
+      const scoped = await recoverySource(tx, departmentId, command.leaveId);
       if (command.operation === "save") {
         const receipt = await tx.mutationReceipt.findUnique({ where: { id: command.requestId } });
         if (receipt) {
@@ -100,7 +110,7 @@ export async function changeResolution(actorId: string | null, input: unknown): 
       if (board.items.some(i => i.selectionError)) throw new ScheduleError("CONFLICT", "A selected candidate is no longer valid in this batch. Recompute and choose again or clear it.");
       if (plan?.status === "PUBLISHED" && !board.items.length) throw new ScheduleError("CONFLICT", "This plan is already published. No unresolved classes need a draft.");
       const data = { status: "DRAFT", baseScheduleRevision: board.revision, revisionSnapshot: board.revisions as Prisma.InputJsonValue, policySnapshot: { ...s.policy, onlineEnabled: s.onlineEnabled }, snapshotToken: board.token };
-      const stored = plan ? await tx.resolutionPlan.update({ where: { id: plan.id }, data: { ...data, version: { increment: 1 } } }) : await tx.resolutionPlan.create({ data: { ...data, departmentId, leaveRequestId: command.leaveId, ownerId: actorId } });
+      const stored = plan ? await tx.resolutionPlan.update({ where: { id: plan.id }, data: { ...data, version: { increment: 1 } } }) : await tx.resolutionPlan.create({ data: { ...data, departmentId, ...(scoped.kind === "leave" ? { leaveRequestId: command.leaveId } : { sourceOccurrenceId: command.leaveId }), ownerId: actorId } });
       // Keep stable items so response/exception foreign keys and terminal history survive edits.
       const savedSelections: Board["savedSelections"] = {};
       for (const old of plan?.items ?? []) if (old.status !== "PUBLISHED" && !board.items.some(i => i.original.occurrenceId === old.occurrenceId)) {

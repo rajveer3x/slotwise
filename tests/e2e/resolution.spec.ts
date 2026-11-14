@@ -60,7 +60,7 @@ test("unresolved and empty boards, direct unauthorized route and provisional fac
   await login(page); await board(page); await expect(page.getByText(/Unresolved · NO_VALID_CANDIDATE/)).toBeVisible(); await expect(page.getByRole("article")).toHaveCount(0);
   await page.getByText(/Rejected alternatives \(/).click(); await expect(page.getByText(/Teacher unavailable for the full interval:/)).toBeVisible();
   await db.classOccurrence.updateMany({ where: { departmentId: f.departmentId, leaveRequestId: f.leaveId }, data: { resolved: true } });
-  await page.reload(); await expect(page.getByText(/No unresolved teaching obligations for this leave/)).toBeVisible();
+  await page.reload(); await expect(page.getByText(/No classes to draft in this board/)).toBeVisible();
   await page.getByRole("button", { name: "Sign out", exact: true }).click(); await expect(page).toHaveURL(/\/login$/); await expect(page.getByLabel("Email", { exact: true })).toBeVisible(); await login(page, f.teacher.email);
   await page.goto(`/resolutions?leave=${f.leaveId}`); await expect(page.getByRole("heading", { name: "Access denied", exact: true })).toBeVisible();
   await page.goto("/leave"); await page.getByLabel("Start date (inclusive)").fill("2099-01-19"); await page.getByLabel("End date (inclusive)").fill("2099-01-19"); await page.getByRole("button", { name: "Preview impact", exact: true }).click();

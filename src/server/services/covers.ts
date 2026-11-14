@@ -8,7 +8,7 @@ import { instant } from "@/domain/scheduling/timetable";
 import { coverState, exactCandidate, invitationExpiry } from "@/domain/covers/consent";
 import type { Candidate, Rejection } from "@/domain/resolution/engine";
 import { coverCommand, type CoverCommand, type CoverResult, type CoverWorkspace, type ConsentCard } from "@/features/covers/schema";
-import { buildResolutionBoard, resolutionActor } from "./resolutions";
+import { buildResolutionBoard, recoveryPlanWhere, recoverySourceId, resolutionActor } from "./resolutions";
 import { candidateJson, consentEvent, consentFingerprint, expireCovers } from "./consent-store";
 import { ScheduleError, type Tx } from "./scheduling-store";
 
@@ -21,6 +21,14 @@ async function actorFor(tx: Tx, id: string | null) {
   return actor;
 }
 const manager = (role: string) => ["ADMIN", "COORDINATOR"].includes(role);
+
+// A missed replacement keeps its original leave provenance through its stable
+// obligation. Neither its assigned teacher nor an original leave owner may
+// approve that obligation's Saturday recovery.
+async function recoveryOwnerIds(tx: Tx, occurrenceId: string) {
+  const source = await tx.classOccurrence.findUniqueOrThrow({ where: { id: occurrenceId }, select: { faculty: { select: { userId: true } }, teachingObligation: { select: { occurrences: { where: { leaveRequestId: { not: null } }, select: { leaveRequest: { select: { faculty: { select: { userId: true } } } } } } } } } });
+  return [...new Set([source.faculty.userId, ...source.teachingObligation.occurrences.flatMap(o => o.leaveRequest ? [o.leaveRequest.faculty.userId] : [])])];
+}
 
 /** Re-solve the saved whole batch against current resources; client candidate JSON is never trusted. */
 async function currentSelection(tx: Tx, ownerId: string, leaveId: string, occurrenceId: string, candidateId: string) {
@@ -53,11 +61,11 @@ export async function changeCover(actorId: string | null, input: unknown): Promi
       let cover, exception;
       if (command.operation === "invite" || command.operation === "request-exception") {
         if (!manager(actor.role)) throw new AccessError("FORBIDDEN");
-        const plan = await tx.resolutionPlan.findFirst({ where: { departmentId, ownerId: actorId, leaveRequestId: command.leaveId, items: { some: { occurrenceId: command.occurrenceId } } } });
+        const plan = await tx.resolutionPlan.findFirst({ where: { departmentId, ownerId: actorId, ...recoveryPlanWhere(command.leaveId), items: { some: { occurrenceId: command.occurrenceId } } } });
         if (!plan) throw new AccessError("FORBIDDEN");
       } else if (command.operation === "approve-exception" || command.operation === "reject-exception") {
         exception = await tx.saturdayException.findFirst({ where: { id: command.id, departmentId }, include: { item: { include: itemInclude } } });
-        if (!exception || actor.role !== "HOD" || exception.requestedById === actorId || exception.item.occurrence.leaveRequest?.faculty.userId === actorId) throw new AccessError("FORBIDDEN");
+        if (!exception || actor.role !== "HOD" || exception.requestedById === actorId || (await recoveryOwnerIds(tx, exception.item.occurrenceId)).includes(actorId)) throw new AccessError("FORBIDDEN");
       } else {
         cover = await tx.substitutionRequest.findFirst({ where: { id: command.id, departmentId }, include: { item: { include: itemInclude } } });
         if (!cover) throw new AccessError("FORBIDDEN");
@@ -83,7 +91,7 @@ export async function changeCover(actorId: string | null, input: unknown): Promi
         if (exception.status !== "PENDING") throw new ScheduleError("CONFLICT", "This exception already has a final decision or was invalidated. Refresh its history.");
         const candidate = exception.candidate as unknown as Candidate;
         if (command.operation === "approve-exception") {
-          const current = await currentSelection(tx, exception.requestedById, exception.item.plan.leaveRequestId, exception.item.occurrenceId, candidate.id);
+          const current = await currentSelection(tx, exception.requestedById, recoverySourceId(exception.item.plan), exception.item.occurrenceId, candidate.id);
           if (current.selected.tier !== 5 || exception.candidateFingerprint !== consentFingerprint(current.selected.id) || ![1, 2, 3, 4].every(t => current.board.items.find(i => i.original.occurrenceId === exception!.item.occurrenceId)!.skippedTiers.includes(t))) throw new ScheduleError("CONFLICT", "Only an exact valid Saturday candidate with earlier-tier explanations can be approved.");
         }
         const decisionAt = new Date();
@@ -104,7 +112,7 @@ export async function changeCover(actorId: string | null, input: unknown): Promi
           if (status !== "PENDING") throw new ScheduleError("CONFLICT", "This invitation already has a final response or was cancelled. Refresh its history.");
           const candidate = cover.candidate as unknown as Candidate;
           if (command.operation === "accept") {
-            const current = await currentSelection(tx, cover.requestedById, cover.item.plan.leaveRequestId, cover.item.occurrenceId, candidate.id);
+            const current = await currentSelection(tx, cover.requestedById, recoverySourceId(cover.item.plan), cover.item.occurrenceId, candidate.id);
             if (current.selected.tier !== 1 || cover.candidateFingerprint !== consentFingerprint(current.selected.id)) throw new ScheduleError("CONFLICT", "This exact candidate needs a new invitation.");
             const competing = await tx.substitutionRequest.findFirst({ where: { departmentId, obligationId: cover.obligationId, status: "ACCEPTED", id: { not: cover.id } } });
             if (competing) throw new ScheduleError("CONFLICT", "Another faculty response has already been accepted for this obligation.");
@@ -153,8 +161,8 @@ async function createRequest(tx: Tx, actorId: string, departmentId: string, comm
   const explanation = current.board.items.find(i => i.original.occurrenceId === command.occurrenceId)!;
   if (selected.tier !== 5 || ![1, 2, 3, 4].every(t => explanation.skippedTiers.includes(t))) throw new ScheduleError("VALIDATION_ERROR", "Only a saved Saturday candidate reached after earlier tiers can request an exception.");
   if (await tx.saturdayException.findFirst({ where: { departmentId, itemId: item.id, status: { in: ["PENDING", "APPROVED"] } } })) throw new ScheduleError("CONFLICT", "This item already has a pending or approved Saturday exception.");
-  const leaveOwner = await tx.leaveRequest.findUniqueOrThrow({ where: { id: command.leaveId }, select: { faculty: { select: { userId: true } } } });
-  const hods = await tx.user.findMany({ where: { departmentId, active: true, role: "HOD", id: { notIn: [actorId, leaveOwner.faculty.userId] } }, select: { id: true } });
+  const owners = await recoveryOwnerIds(tx, command.occurrenceId);
+  const hods = await tx.user.findMany({ where: { departmentId, active: true, role: "HOD", id: { notIn: [actorId, ...owners] } }, select: { id: true } });
   if (!hods.length) throw new ScheduleError("CONFLICT", "No eligible HoD approver is available. A different active departmental HoD must review this exception.");
   const r = await tx.saturdayException.create({ data: { departmentId, itemId: item.id, requestedById: actorId, candidateFingerprint: consentFingerprint(selected.id), candidate: candidateJson(selected), requestReason: command.reason, earlierTiers: explanation.rejections.filter(r => r.tier < 5) as unknown as Prisma.InputJsonValue } });
   await consentEvent(tx, departmentId, actorId, r.id, "SATURDAY_REQUESTED", "NONE", "PENDING", [actorId, ...hods.map(h => h.id)], { reason: command.reason, candidateFingerprint: r.candidateFingerprint });
@@ -177,7 +185,7 @@ export async function readCoverWorkspace(actorId: string | null): Promise<CoverW
     const boards = new Map<string, Awaited<ReturnType<typeof buildResolutionBoard>> | null>();
     async function valid(item: (typeof covers)[number]["item"], candidate: Candidate) {
       if (!boards.has(item.plan.id)) {
-        try { boards.set(item.plan.id, await buildResolutionBoard(tx, await resolutionActor(tx, item.plan.ownerId), item.plan.leaveRequestId)); }
+        try { boards.set(item.plan.id, await buildResolutionBoard(tx, await resolutionActor(tx, item.plan.ownerId), recoverySourceId(item.plan))); }
         catch (error) { if (!(error instanceof AccessError)) throw error; boards.set(item.plan.id, null); }
       }
       const board = boards.get(item.plan.id)?.board;
@@ -195,7 +203,7 @@ export async function readCoverWorkspace(actorId: string | null): Promise<CoverW
     for (const r of exceptions) {
       const candidate = r.candidate as unknown as Candidate, current = await valid(r.item, candidate);
       const cardLabels = Object.fromEntries(candidate.assignments.flatMap(a => [a.allocationId, a.facultyId, a.sectionId, a.roomId ?? ""]).map(id => [id, labels[id] ?? "Unavailable record"]));
-      exceptionCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "saturday", candidateId: candidate.id, candidate, labels: cardLabels, status: r.status, createdAt: r.createdAt.toISOString(), respondedAt: r.decidedAt?.toISOString(), reason: r.requestReason, decisionReason: r.decisionReason ?? undefined, closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, canRespond: false, canCancel: false, canReview: actor.role === "HOD" && r.requestedById !== actor.id && r.item.occurrence.leaveRequest?.faculty.userId !== actor.id && r.status === "PENDING" && current, earlierTiers: r.earlierTiers as unknown as Rejection[], published: r.item.status === "PUBLISHED", stale: r.item.status !== "PUBLISHED" && ["PENDING", "APPROVED"].includes(r.status) && !current });
+      exceptionCards.push({ id: r.id, itemId: r.itemId, occurrenceId: r.item.occurrenceId, kind: "saturday", candidateId: candidate.id, candidate, labels: cardLabels, status: r.status, createdAt: r.createdAt.toISOString(), respondedAt: r.decidedAt?.toISOString(), reason: r.requestReason, decisionReason: r.decisionReason ?? undefined, closedReason: r.closureReason ?? undefined, requestedBy: r.requestedBy.name, canRespond: false, canCancel: false, canReview: actor.role === "HOD" && r.requestedById !== actor.id && !(await recoveryOwnerIds(tx, r.item.occurrenceId)).includes(actor.id) && r.status === "PENDING" && current, earlierTiers: r.earlierTiers as unknown as Rejection[], published: r.item.status === "PUBLISHED", stale: r.item.status !== "PUBLISHED" && ["PENDING", "APPROVED"].includes(r.status) && !current });
     }
     const notifications = await tx.notification.findMany({ where: { departmentId, recipientId: actor.id, message: { startsWith: "Recovery request:" } }, select: { id: true, message: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 30 });
     return { covers: coverCards, exceptions: exceptionCards, notifications: notifications.map(n => ({ ...n, createdAt: n.createdAt.toISOString() })), computedAt };

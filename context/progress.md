@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–007 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Features 008–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–008 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Features 009–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -18,7 +18,7 @@ Features 000–007 are implemented locally. Feature 005 adds a deterministic pur
 | 005 | Explainable resolution engine | 004 | Complete; pure rules, durable drafts, scope, concurrency and browser checks verified |
 | 006 | Substitute response and Saturday approval | 005 | Complete; authorized responses, expiry, exact consent, concurrency and browser checks verified |
 | 007 | Change preview and publication | 006 | Complete; subset review, exact consent, real database races/rollback and browser flow verified |
-| 008 | Delivery and contact-minutes ledger | 007 | Not started |
+| 008 | Delivery and contact-minutes ledger | 007 | Complete; unique credit, corrections, recovery, concurrency and browser checks verified |
 | 009 | Workload and impact dashboards | 008 | Not started |
 | 010 | Notifications and acknowledgement | 007, 009 | Not started |
 | 011 | Audit viewer and demo verification | 010 | Not started |
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 007 as requested. Feature 008 (delivery confirmation and contact-minutes ledger) is next only on a separate request. Recovery publication preserves existing obligations, required minutes and pending delivery; the ledger must count unique confirmed delivery across original/replacement history. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 008 as requested. Feature 009 (workload and impact dashboards) is next only on a separate request. Scheduling/consent never earns delivery; current delivery records count stable obligations once across original/replacement history. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -708,3 +708,65 @@ Early checks exposed the template-date identity issue above, one existing approv
 - Fresh final Node 24.22.3 checks passed: `npm run typecheck`, `npm run lint`, `npm test` (**48/48**), `npm run test:integration` (**93/93**, including **20 publication cases**), `npm run build`, `npm run check:client-bundle` (**36 bundles**), and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (**74/74** in 1.2 minutes). Race conditions, exact consent, unauthorized operations, stale recovery, atomic late rollback, pending/retry handling and student timetable refresh all pass.
 - `npm run db:validate`, `npm run db:check`, `npx prisma migrate status` (**10 migrations, up to date**) and datasource/schema diff (**empty migration**) passed. `git diff --check` passed. Existing pg-driver deprecation and supported-lint-toolchain maintenance notes remain; no failed feature-007 acceptance criterion remains.
 - Fetched `origin`; local `main` matched `origin/main` before this change. Scanned all changed/new files for configured secret values and private-key/token patterns; none found. Real environment files, generated client/build files, screenshots and traces remain ignored. This verified feature-007 change set is ready for the user-authorized commit/push; no deployment is included.
+
+
+## Feature 008 handoff — 2026-11-14
+
+**Status:** complete. All six numbered acceptance criteria verified locally. Features 009 onward were not implemented. No new dependency, persistent demo publication, commit, push or deployment.
+
+### What changed
+
+- Added `prisma/migrations/20261114040000_delivery_ledger/migration.sql` and DeliveryRecord schema relations: scoped obligation/occurrence/confirmer foreign keys, retained correction records, unique current record per occurrence and unique current HELD credit per obligation. A database trigger independently checks obligation identity and full duration. ResolutionPlan has exactly one explicit approved-leave or not-held-occurrence source. Applied additively to both databases without resetting data.
+- Added `src/domain/delivery/ledger.ts`, `src/features/delivery/{schema,actions,components}.ts[x]`, `src/server/services/delivery.ts`, protected `/delivery` and `/classes-owed` pages. Faculty/HoD profiles can confirm their assigned ended classes; coordinators can confirm/correct with an audit reason. Admin/HoD ledger permission alone does not grant correction authority. Typed strict commands reject forged actor/minute fields. Semester URL filters, explicit refresh, pending/empty/error/success/history/stale states reuse AppShell and Button/Input.
+- Delivery writes serialize through User→Department locks, reload current permission/scope, authorize the occurrence before receipt replay, check end time after locking, and compare the exact current record on correction. Record retirement/replacement, delivery status, past reservation release for NOT_HELD, schedule revision, safe audit and actor/payload-bound receipt commit together. A HELD correction never resurrects reservations or overrides a published replacement. Same successful retry returns its receipt before stale rejection; changed keys/payloads/actors cannot reuse it.
+- Ledger reads derive required allocation targets, uniquely delivered obligation credit, future planned coverage, outstanding and overdue minutes from authoritative records. Due time is the earliest scheduled end in an obligation history; future requirements are outstanding without becoming overdue. A future recovery does not erase existing overdue minutes. Unmaterialized allocation requirements have no invented due time. Clients maintain no delivery counters.
+- Updated `resolutions.ts`, `publications.ts`, `covers.ts`, resolution UI and `scheduling-store.ts`: ordinary not-held leaf occurrences enter the existing engine/publication workflow without a second requirement or fake leave request. A missed published recovery can be recovered again using the same obligation. Original leave provenance remains in retained history; exact Saturday consent excludes the assigned teacher and original leave owners from self-approval. Monthly confirmed-cover ranking uses current HELD tier-1 delivery records and reverses after correction. Existing exact consent, resource exclusion and batch publication protections remain.
+- Updated navigation and route revalidation in timetable, leave and publication actions. Added `tests/unit/delivery.test.ts`, `tests/integration/delivery.test.ts`, `tests/e2e/delivery.spec.ts`, `tests/support/delivery-fixture.ts`; extended isolated fixture teardown for recovery-source references and updated one old empty-board text assertion. README and owning context files describe the actual flow and boundaries.
+
+### Acceptance evidence
+
+| Criterion | Verified evidence |
+| --- | --- |
+| 1. Reject premature confirmation | Real service rejects future/ongoing classes, including one millisecond before end; exact-end controlled-clock confirmation succeeds. Server time is read after lock acquisition. |
+| 2. Ended assigned class credits once | Faculty and reasoned coordinator confirmations persist full-duration records. Concurrent same-key retry and duplicate same-outcome requests leave one current record and one earned 60-minute obligation. |
+| 3. Original/replacement cannot double count | Actual missed→published makeup→ended HELD chain earns 60 once. Correcting its replaced predecessor is rejected. PostgreSQL independently rejects a second HELD record on a distinct occurrence for that same obligation, plus mismatched identities and partial credit. |
+| 4. Planned/accepted makeup earns nothing | Real accepted substitute and future published recovery leave ledger delivered minutes at zero. Future planned minutes remain separate; original overdue/outstanding/required totals survive rescheduling. |
+| 5. Reasoned correction updates totals and audit | HELD→NOT_HELD→HELD reverses/restores totals while retaining all three records and both correction audit reasons. Same-key correction retries are idempotent; competing different-key corrections have one winner and one stale result. Late audit and receipt failures restore records, occurrences, reservations, revisions, audit and receipts exactly. |
+| 6. Not-held remains recoverable without a new requirement | Browser correction→ordinary recovery→publication retains the original obligation, null leave source and zero earned minutes. Integration repeats recovery after another missed replacement. Correction versus publication race has exactly one winner. A missed substitute preserves original leave ownership for separate HoD Saturday review. |
+
+Direct checks also cover anonymous/student/wrong-teacher/admin/HoD/cross-department mutation denial, faculty ledger denial, semester scope, revoked/changed-role receipt replay, actor revocation while waiting for its lock, strict inputs and safe DTOs without private leave reasons.
+
+### Commands and actual results
+
+Used Node **24.22.3** via `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`, existing local PostgreSQL and installed Google Chrome. Final results:
+
+| Command | Actual result |
+| --- | --- |
+| `npm run db:generate`, `npm run db:test:migrate`, `npm run db:migrate` | Passed; generated current client, additive migration applied to isolated/persistent databases. |
+| `npm run db:validate`, `npm run db:check`, `npx prisma migrate status` | Passed; valid schema, real SELECT 1, **11 migrations up to date**. |
+| `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` | Empty migration. |
+| `npm run typecheck`, `npm run lint` | Passed; zero lint warnings. |
+| `npm test` | **54/54**, ten files, including six new ledger/validation unit cases. |
+| `npm run test:integration` | Final **111/111**, including **18 delivery cases** and all prior auth/scheduling/consent/publication regressions. |
+| `npm run build`, `npm run check:client-bundle` | Passed; both new dynamic routes compiled; **39 bundles** checked without Prisma/database URLs/configured secrets. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | Final **84/84** in 1.4 minutes, including **10 delivery/ledger cases**. |
+| `git diff --check` | Passed. |
+
+Early checks caught a test clock API misuse, fixture-teardown reference cycle, JSX-in-try lint violation and unreadable mobile table compression. Corrected these before the final passing checks; removed the three abandoned fixtures from the initial teardown failure only in `slotwise_auth_test`. Final screenshot inspection confirms readable table widths with intentional internal scrolling. Test-only late-failure injection logs safe Prisma error names in passing rollback tests. Inherited pg-driver deprecation and ESLint support-maintenance notes remain.
+
+### Visual verification, demo and limits
+
+- Loaded both screens at **320/390/768/1440px** with long course names, native keyboard history disclosures, explicit focus, reduced motion, **200% layout zoom**, no page-wide overflow, zero page runtime errors and axe WCAG A/AA scans. Verified keyboard scrolling inside the labelled ledger region. Inspected final **390/1440px** delivery and ledger screenshots; active actions appear first, schedule/delivery labels remain separate and metric headers/numbers no longer break into letters. General loading/error UI inherits the already verified protected route boundaries.
+- Browser workflow verifies faculty keyboard confirmation and visible success after its form closes; reasoned coordinator confirmation/correction; retained history and totals; ordinary not-held recovery publication; network failure/pending/retry; stale correction with retained reason and explicit latest-record review; student route denial; HoD/admin ledger-only access and empty semesters.
+- Demo: open **Class delivery** for an ended assigned 60-minute class → confirm **Held** → coordinator opens **Classes owed** to see 60 delivered → coordinator corrects to **Not held** with reason → inspect both history states and restored overdue minutes → **Arrange recovery for this obligation** → save/preview/publish → verify required/outstanding stay unchanged and delivered remains zero until the recovery ends and is confirmed. README provides the repeatable immediate isolated-browser test command. Persistent seed records publish no past classes; a manual fresh-database demo must wait for a valid published class to end.
+- No 008 acceptance criterion remains blocked or unverified locally. Deliberate boundaries: full-duration confirmation only; no split recovery/attendance; the inherited 14-day/semester search horizon can honestly leave old obligations unresolved; correcting an already replaced predecessor needs a separately reviewed schedule reversal outside MVP. No production-policy, deployment, full screen-reader or external-message claim is made.
+- React/Next.js concepts: protected Server Components and minimal serializable DTOs; controlled Client Components with `useState`, `useRef`, `useTransition`; native semantic forms/tables/disclosures; identity-resolving, Zod-validated Server Actions and route revalidation after commit. Server authorization, current-record identity, stable obligations, transaction locks, partial unique indexes and receipts each enforce a separate boundary.
+- Shared context updated in overview, architecture, technology, domain rules (source identity, reason and due-time semantics), UI/UX, README and this progress record. Next recommended feature: **009 workload and impact dashboards**, only on a separate request.
+
+## Feature 008 verification before GitHub push — 2026-11-14
+
+- Reviewed delivery and ledger against feature 008, including permissions, separate scheduling and delivery states, unique obligation credit, correction history and the LPU UI. Found that Leave undercounted unresolved obligations after a published substitute was marked Not held. Updated `src/server/services/leave.ts` to count stable obligations across replacement history. Updated the Leave and Resolutions text to distinguish active coverage, delivery and where to find missed replacements.
+- The regression assertion initially failed with one unresolved obligation where two were expected. It now passes and verifies the count returns to one after a coordinator confirms delivery by correction, even while the occurrence remains cancelled for scheduling. The existing permission, concurrency and rollback coverage also passed.
+- Fresh Node 24.22.3 runs passed `npm run typecheck`, `npm run lint`, `npm test` (**54/54**), `npm run test:integration` (**111/111**), `npm run build`, `npm run check:client-bundle` (**39 bundles**) and `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` (**84/84**). Browser checks covered 320–1440px reflow, 200% layout zoom, keyboard scrolling and axe. Inspected fresh mobile delivery and desktop ledger screenshots.
+- `npm run db:validate`, `npm run db:check`, `npx prisma migrate status` (**11 migrations up to date**) and `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` (**empty migration**) passed. The connectivity check was rerun after Prisma generation finished. No migration changes were needed for the reporting fix. `git diff --check` passed.
+- Reviewed the 34 changed and new files for configured secret values and credential patterns. The scan found none, and environment files, generated output and browser artifacts remain ignored. Feature 009 remains the next separate task.

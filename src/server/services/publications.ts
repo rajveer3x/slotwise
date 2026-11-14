@@ -7,7 +7,7 @@ import { AccessError, sessionIdentity } from "@/server/auth/session";
 import { instant } from "@/domain/scheduling/timetable";
 import { assignmentErrors, type Candidate } from "@/domain/resolution/engine";
 import { publicationCommand, type PublicationPreview, type PublicationResult } from "@/features/publications/schema";
-import { buildResolutionBoard, resolutionActor } from "./resolutions";
+import { buildResolutionBoard, recoveryPlanWhere, resolutionActor } from "./resolutions";
 import { assertExactConsent, invalidateItemConsent } from "./consent-store";
 import { asAssignment, occurrenceInclude, ScheduleError, type Tx } from "./scheduling-store";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -43,7 +43,7 @@ async function prepare(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>
     for (const a of candidate.assignments) {
       const old = await tx.classOccurrence.findFirst({ where: { id: a.occurrenceId, departmentId: actor.departmentId }, include: { ...occurrenceInclude, replacement: true } });
       const original = a.occurrenceId === item.occurrenceId;
-      if (!old || old.replacement || old.resolved || old.deliveryStatus !== "PENDING" || old.teachingObligationId !== a.obligationId || old.teachingObligation.allocationId !== a.allocationId || old.teachingObligation.requiredMinutes !== a.endMinute - a.startMinute || old.sectionId !== a.sectionId || (original ? old.schedulingStatus !== "CANCELLED" || old.leaveRequestId !== command.leaveId : old.schedulingStatus !== "ACTIVE" || !candidate.removes.includes(old.id)) || await tx.classOccurrence.count({ where: { teachingObligationId: a.obligationId, id: { not: old.id }, OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } })) throw new ScheduleError("CONFLICT", "A teaching obligation changed or was already resolved. Recompute; no partial publication is allowed.");
+      if (!old || old.replacement || (original ? !(old.deliveryStatus === "NOT_HELD" || (!old.resolved && old.deliveryStatus === "PENDING")) : old.resolved || old.deliveryStatus !== "PENDING") || old.teachingObligationId !== a.obligationId || old.teachingObligation.allocationId !== a.allocationId || old.teachingObligation.requiredMinutes !== a.endMinute - a.startMinute || old.sectionId !== a.sectionId || (original ? old.schedulingStatus !== "CANCELLED" || !(old.leaveRequestId === command.leaveId || (old.id === command.leaveId && old.deliveryStatus === "NOT_HELD")) : old.schedulingStatus !== "ACTIVE" || !candidate.removes.includes(old.id)) || await tx.classOccurrence.count({ where: { teachingObligationId: a.obligationId, id: { not: old.id }, OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } })) throw new ScheduleError("CONFLICT", "A teaching obligation changed or was already resolved. Recompute; no partial publication is allowed.");
       changes.push({ itemId: item.id, tier: candidate.tier, beforeStatus: old.schedulingStatus, before: asAssignment(old), after: a, meetingUrl: url });
     }
   }
@@ -67,7 +67,7 @@ export async function changePublication(actorId: string | null, input: unknown):
         // assignees in stable order before Department, then revalidate the saved
         // plan below. This closes the eligibility/revocation race without
         // preventing an administrator from revoking an already assigned account.
-        const items = await tx.resolutionItem.findMany({ where: { plan: { ownerId: actorId, leaveRequestId: command.leaveId }, occurrenceId: { in: command.occurrenceIds } }, select: { explanation: true } });
+        const items = await tx.resolutionItem.findMany({ where: { plan: { ownerId: actorId, ...recoveryPlanWhere(command.leaveId) }, occurrenceId: { in: command.occurrenceIds } }, select: { explanation: true } });
         const facultyIds = items.flatMap(i => (i.explanation as unknown as { selected?: Candidate }).selected?.assignments.map(a => a.facultyId) ?? []);
         const faculty = await tx.faculty.findMany({ where: { id: { in: facultyIds } }, select: { userId: true } });
         for (const f of faculty) lockedUsers.add(f.userId);
@@ -76,7 +76,7 @@ export async function changePublication(actorId: string | null, input: unknown):
       const actor = await resolutionActor(tx, actorId), departmentId = actor.departmentId;
       if (command.operation === "publish") await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${departmentId} FOR UPDATE`;
       // Scope and current role are checked even when replaying a successful receipt.
-      const scoped = await tx.resolutionPlan.findFirst({ where: { departmentId, ownerId: actorId, leaveRequestId: command.leaveId } });
+      const scoped = await tx.resolutionPlan.findFirst({ where: { departmentId, ownerId: actorId, ...recoveryPlanWhere(command.leaveId) } });
       if (!scoped) throw new AccessError("FORBIDDEN");
       if (command.operation === "publish") {
         const receipt = await tx.mutationReceipt.findUnique({ where: { id: command.requestId } });

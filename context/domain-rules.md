@@ -21,7 +21,7 @@ Store actual class instants as timezone-aware timestamps and user-entered leave/
 | TeachingObligation | original required teaching unit, course/section, requiredMinutes; survives rescheduling |
 | ResourceReservation | occurrenceId, resource type/id, active time interval; prevents overlap |
 | LeaveRequest | faculty, inclusive dates, private reason, status, reviewer, decision timestamps |
-| ResolutionPlan / Item | leaveRequest, baseScheduleRevision, policy snapshot, status; affected occurrence, tier, selected candidate, explanation and rejected alternatives |
+| ResolutionPlan / Item | approved leave or not-held source occurrence, baseScheduleRevision, policy snapshot, status; affected occurrence, tier, selected candidate, explanation and rejected alternatives |
 | SubstitutionRequest | plan item, invited faculty, proposed interval, status, expiry, response time |
 | SaturdayException | plan item, HOD reviewer, status, reason, approved candidate fingerprint |
 | DeliveryRecord | obligation/occurrence, confirmed minutes, confirming faculty/coordinator, timestamp; corrections audited |
@@ -39,7 +39,7 @@ Implement schema incrementally by feature. Add foreign keys, uniqueness and inde
 | Approve leave and Saturday exceptions | Department HOD; cannot approve own leave |
 | Submit/withdraw pending leave | Owning FACULTY, including a HOD with a faculty profile |
 | Respond to cover request | Invited active faculty only |
-| Confirm delivery | Assigned faculty or department COORDINATOR; corrections require reason |
+| Confirm delivery | Assigned faculty or department COORDINATOR; coordinator confirmations/corrections require an audit reason |
 | View timetable | Staff within scope; students only their section |
 | View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration |
 | View private leave reasons | Requesting faculty and authorized HOD only |
@@ -85,9 +85,9 @@ Core cover invites are coordinator-initiated with configurable expiry, default 2
 
 ## Contact minutes and workload
 
-Maintain semester required contact minutes per course allocation and stable teaching obligations. Count each obligation's delivered minutes once, including linked replacements. Default delivery confirmation is for the full scheduled duration after class end; partial delivery and split makeups are future scope. Duplicate confirmations are idempotent. A correction reverses/replaces the credited record with an audit reason.
+Maintain semester required contact minutes per course allocation and stable teaching obligations. Count each obligation's delivered minutes once, including linked replacements. Default delivery confirmation is for the full scheduled duration after class end; partial delivery and split makeups are future scope. Duplicate confirmations are idempotent. Coordinator confirmations and corrections require an audit reason. A correction reverses/replaces the current credited record and retains the old record; it cannot override an already published replacement. A separately reviewed scheduling reversal is outside this MVP.
 
-Semester outstanding = max(0, required contact minutes - unique confirmed delivered minutes). Overdue = due obligation minutes up to now minus delivered minutes for those obligations, floored at zero. Future planned classes are outstanding, not overdue. Report planned coverage separately. A reschedule does not add a new requirement; accepted cover does not create delivered minutes.
+Semester outstanding = max(0, required contact minutes - unique confirmed delivered minutes). Overdue = due obligation minutes up to now minus delivered minutes for those obligations, floored at zero. Future planned classes are outstanding, not overdue. For materialized units, due time is the earliest scheduled end in the obligation history; an overdue unit remains overdue while future recovery is only planned. Report planned coverage separately. A reschedule does not add a new requirement; accepted cover does not create delivered minutes.
 
 For the MVP show scheduled and delivered teaching minutes separately per week. Planned utilization = assigned active teaching minutes / faculty target minutes for that week, including substitute assignments once. Confirmed covers and earned credit are separate recognition counters; do not add credit again to teaching load. Demo bands: below 0.9 under target, 0.9-1.1 balanced, above 1.1 over target. Hard workload limits still apply independently. Advanced weighted administrative/project duties are deferred.
 

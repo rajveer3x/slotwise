@@ -29,11 +29,14 @@ export async function timetableFixture(db: PrismaClient, passwordHash = "synthet
 }
 export async function cleanupTimetable(db: PrismaClient, departmentId: string) {
   const where = { departmentId };
+  await db.deliveryRecord.deleteMany({ where });
   await db.substitutionRequest.deleteMany({ where }); await db.saturdayException.deleteMany({ where });
   await db.resolutionItem.deleteMany({ where });
   await db.notification.deleteMany({ where }); await db.auditEvent.deleteMany({ where }); await db.mutationReceipt.deleteMany({ where }); await db.resourceReservation.deleteMany({ where });
-  await db.classOccurrence.updateMany({ where, data: { replacesId: null } }); await db.classOccurrence.deleteMany({ where });
+  const cleanupRoom = await db.room.findFirstOrThrow({ where, select: { id: true } });
+  await db.classOccurrence.updateMany({ where, data: { schedulingStatus: "CANCELLED", roomId: cleanupRoom.id, resolutionTier: null, meetingUrl: null, publicationId: null, replacesId: null } });
   await db.schedulePublication.deleteMany({ where }); await db.resolutionPlan.deleteMany({ where });
+  await db.classOccurrence.deleteMany({ where });
   await db.leaveRequest.deleteMany({ where }); await db.teachingObligation.deleteMany({ where }); await db.timetableEntry.deleteMany({ where }); await db.timetableVersion.deleteMany({ where });
   await db.masterMutationReceipt.deleteMany({ where }); await db.courseAllocation.deleteMany({ where }); await db.facultyQualification.deleteMany({ where }); await db.facultyAvailability.deleteMany({ where }); await db.sectionMembership.deleteMany({ where }); await db.holiday.deleteMany({ where }); await db.section.deleteMany({ where }); await db.faculty.deleteMany({ where }); await db.course.deleteMany({ where }); await db.room.deleteMany({ where }); await db.timeSlot.deleteMany({ where }); await db.semester.deleteMany({ where }); await db.user.deleteMany({ where }); await db.department.delete({ where: { id: departmentId } });
 }

@@ -85,7 +85,9 @@ export async function readLeaveWorkspace(actorId: string | null, leaveId?: strin
       const semester = await tx.leaveRequest.findUniqueOrThrow({ where: { id: selected.id }, select: { semester: { select: { scheduleRevision: true } } } });
       const current = await affected(tx, departmentId, selected.facultyId, selected.startDate, selected.endDate);
       const cancelled = await tx.classOccurrence.count({ where: { departmentId, leaveRequestId: selected.id } });
-      const unresolved = await tx.classOccurrence.count({ where: { departmentId, leaveRequestId: selected.id, replacement: null, teachingObligation: { occurrences: { none: { OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } } } } });
+      // Follow the obligation across replacement history: a missed recovery is
+      // unresolved again even though its leave-linked predecessor has a replacement.
+      const unresolved = await tx.teachingObligation.count({ where: { departmentId, occurrences: { some: { leaveRequestId: selected.id }, none: { OR: [{ schedulingStatus: "ACTIVE" }, { deliveryStatus: "HELD" }] } } } });
       detail = { ...selected, privateFields, impact: impactFor(current, semester.semester.scheduleRevision), cancelled, unresolved, canReview: actor.role === "HOD" && selected.faculty.userId !== actor.id && selected.status === "SUBMITTED", canWithdraw: selected.faculty.userId === actor.id && ["FACULTY", "HOD"].includes(actor.role) && selected.status === "SUBMITTED" };
     }
     const semesters = await tx.semester.findMany({ where: { departmentId, archived: false, endDate: { gte: localDate() } }, select: { id: true, name: true, startDate: true, endDate: true, scheduleRevision: true }, orderBy: [{ active: "desc" }, { startDate: "asc" }] });
