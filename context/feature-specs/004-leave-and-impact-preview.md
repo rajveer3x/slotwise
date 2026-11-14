@@ -6,6 +6,12 @@ Scope: MVP. Dependencies: 003.
 
 Faculty chooses inclusive leave dates, sees affected dated classes and submits a request. HoD reviews and approves/rejects. The owner may withdraw a pending request. Preview initially shows affected classes and minutes; candidate-tier coverage counts are added by feature 005, never fabricated now.
 
+## UI alignment
+
+Follow [ui-ux.md](../ui-ux.md) and its future-file pattern. Use the existing LPU AppShell with rounded white request/preview panels on the pale workspace. Place the request form and impact preview side by side when space permits and stack them on phones. Reuse labelled date fields, readable class summaries and shared charcoal action buttons. Lime/lavender provide restrained accents; approval, pending, rejection and stale states retain explicit labels and semantic feedback colors.
+
+This feature is implemented. Preserve current forms, authorized request lists, private-reason boundaries and HoD decisions during UI maintenance. Keep preview, submit and approve visibly distinct. If feature 005 is present, retain its real provisional coverage estimates with their draft/estimate wording. Do not mark a class covered or delivered based on a visual status alone.
+
 ## Data and operations
 
 Create LeaveRequest and authorized list/detail queries. Validate dates, semester range, overlaps and ownership. Use institution-local dates. Preserve private reasons only for owner/approver. Impact queries are read-only. On approval requery current future occurrences, mark them cancelled/unavailable for normal teaching, release their reservations, preserve obligations, increment revision and audit the mutation atomically. Later resolution publication creates valid replacements or cover assignments. No class is marked held by approval.
@@ -29,7 +35,9 @@ Test inclusive local boundaries, no affected classes, changed timetable between 
 
 ```text
 Read AGENTS.md and relevant context. Implement
-context/feature-specs/004-leave-and-impact-preview.md against real dated
+context/feature-specs/004-leave-and-impact-preview.md. Read context/ui-ux.md
+and reuse the implemented LPU form/preview layout and shared controls.
+Inspect existing code and preserve working behaviour against real dated
 occurrences. Keep previews read-only and approvals transactional. Follow
 the common completion contract and update progress.
 ```

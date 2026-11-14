@@ -114,6 +114,7 @@ for (const width of [320, 390, 768, 1440]) {
     await page.getByLabel("Password", { exact: true }).press("Enter"); await expect(page).toHaveURL(/\/dashboard$/);
     for (const path of ["/dashboard", "/admin/accounts"]) {
       await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`${path.slice(1)}-${width}.png`), fullPage: true });
@@ -125,7 +126,7 @@ for (const width of [320, 390, 768, 1440]) {
       await page.keyboard.press("Escape"); await expect(menu).toBeFocused();
     }
     for (const path of ["/dashboard", "/admin/accounts"]) {
-      await page.goto(path); await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+      await page.goto(path); await expect(page.getByRole("heading", { level: 1 })).toBeVisible(); await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
     expect(errors).toEqual([]);

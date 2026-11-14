@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "SlotWise · A clearer academic week", template: "%s · SlotWise" },
-  description: "A university timetable and faculty leave recovery project. Sign in to a role-scoped local demo.",
+  description: "SlotWise, a timetable and faculty leave recovery academic project for Lovely Professional University. Role-scoped synthetic demo.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

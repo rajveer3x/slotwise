@@ -8,6 +8,12 @@ A coordinator builds a weekly draft, places allocations, sees precise conflicts,
 
 Apply [ui-ux.md](../ui-ux.md)'s timetable composition: legible day/time headers, pale course blocks with dark labels, distinct selection/conflict indicators and a mobile agenda. Use the explicit Move class form as the keyboard/touch alternative. Keep hover effects supplemental and timetable values stable during reading.
 
+## UI alignment
+
+Use the implemented charcoal LPU AppShell, pale workspace and rounded white filter/editor panels. Course blocks use restrained lavender, lime and peach treatments; conflicts keep semantic danger styling, while draft, published, cancelled and delivery states remain explicit text. Reuse existing grid/agenda components, shared buttons and the labelled Move class form. Publication previews use readable Before/After details with a clearly pending final action.
+
+Read [ui-ux.md](../ui-ux.md)'s “Creating future UI files” section before changing this implemented feature. Preserve drag/drop, keyboard moves, contained grid scrolling, conflict explanations and transaction behaviour. For browser drag checks with taller cards, position the destination before starting a native drag so the test does not scroll the page mid-drag.
+
 ## Data and operations
 
 Implement timetable versions/entries, stable obligations, dated occurrences and resource reservations. Pure functions validate intervals, capacities, qualification, availability, labs and limits. Suggest up to three valid alternative placements for a rejected move; suggestions never move other classes automatically. Draft conflict warnings may be stored, but invalid drafts cannot publish.
@@ -31,7 +37,9 @@ Unit-test boundary intervals and constraints. Use actual PostgreSQL integration 
 
 ```text
 Read AGENTS.md and scheduling context. Implement
-context/feature-specs/003-timetable-and-conflicts.md. Build manual editing,
+context/feature-specs/003-timetable-and-conflicts.md. Read context/ui-ux.md
+and reuse the existing LPU shell, pastel timetable and shared controls.
+Inspect and preserve implemented workflows. Build or maintain manual editing,
 conflict explanations, alternatives and safe initial publication. Do not
 add auto-generation. Follow the common completion contract and update progress.
 ```

@@ -6,6 +6,12 @@ Scope: MVP. Dependencies: 001.
 
 Authorized staff configure the teaching data through searchable, validated forms. Provide tabs for semester/holidays, faculty/availability, courses/qualifications, sections/memberships, rooms, teaching slots and allocations. Limit user/role assignment to ADMIN; department COORDINATOR can manage teaching records within scope.
 
+## UI alignment
+
+Follow [ui-ux.md](../ui-ux.md) and its future-file pattern. Keep Master data inside the existing LPU AppShell. Use rounded white table/form panels on the pale workspace, consistent tab selection, restrained lavender/lime highlights and shared charcoal action buttons. Reuse current labelled fields, search controls, named row actions, error feedback and archival explanations. Keep dense tables readable with contained scrolling or a mobile list; primary actions and important values must remain accessible at narrow widths and zoom.
+
+This feature is already implemented. Maintain the existing entity tabs and validated CRUD; do not regenerate master data screens from an unrelated template or reset/reseed records for a styling change.
+
 ## Data and rules
 
 Implement the entities in domain-rules.md with foreign keys, uniqueness, positive capacities/durations/targets and valid semester boundaries. Store qualification as explicit course relationships. Define weekly periods and required semester contact minutes separately. Archive referenced records instead of deleting history. Reject changes that would invalidate a published schedule unless applied through a reviewed scheduling flow; add this guard when publication exists.
@@ -28,7 +34,9 @@ Test validation, uniqueness, foreign-key scope, seed reruns and archival. Demons
 
 ```text
 Read AGENTS.md and relevant context. Implement
-context/feature-specs/002-master-data.md with persistent scoped CRUD and
+context/feature-specs/002-master-data.md. Read context/ui-ux.md, inspect
+existing code and reuse the LPU shell, table panels and shared controls.
+Implement or maintain persistent scoped CRUD and
 synthetic seed data. Reuse auth and validation conventions. Follow the
 common completion contract and update progress.
 ```

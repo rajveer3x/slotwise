@@ -7,7 +7,7 @@ This repository is a React and Next.js subject project. Follow the user's curren
 1. Read `context/overview.md` and `context/progress.md`.
 2. For implementation, read `context/tech.md`, `context/architecture.md`, `context/domain-rules.md`, and `context/ui-ux.md`. On later tasks, reread the relevant sections and any changed files.
 3. Read the requested specification under `context/feature-specs/` and verify its dependencies in the code. Do not treat a progress checkbox as proof.
-4. Inspect the repository, package scripts, and related code before editing. At initial handoff this repository contains documentation only.
+4. Inspect the repository, package scripts, and related code before editing. Application code through feature 005 now exists; verify the current state in code and progress rather than assuming the original documentation-only handoff.
 5. Briefly state the feature being implemented and any material assumptions. Proceed on routine implementation choices; ask only about decisions that materially change requirements or cannot safely be inferred.
 
 ## Implementation contract
@@ -21,6 +21,7 @@ This repository is a React and Next.js subject project. Follow the user's curren
 - Use the simplest implementation satisfying the spec. Do not add AI services, a Python solver, external messaging, or background infrastructure unless the selected feature requires them.
 - Preserve unrelated user changes. Never commit credentials. Use synthetic demo records and document their origin.
 - Include accessible, responsive UI and loading, empty, validation, pending, success, error, and stale-data states where relevant.
+- For every new or edited page, form, component or UI stylesheet, read `context/ui-ux.md` and its “Creating future UI files” section. Match the implemented charcoal/lime/lavender LPU design, reuse the existing application shell, Button/Input and stylesheet patterns, and keep semantic status colors. The old blue/flat Notion guidance is superseded. Do not create a separate design system or duplicate the shell for a new feature.
 
 ## Verification and handoff
 

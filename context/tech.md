@@ -10,7 +10,7 @@ Feature 000 installed the foundation on 2026-11-12. Features 001 and 002 added l
 | --- | --- | --- |
 | Framework | Next.js App Router, React, TypeScript strict mode | Course focus; one full-stack application |
 | Styling | Tailwind CSS, shadcn/ui primitives, Lucide icons | Consistent reusable interface |
-| Design system | Semantic tokens and layouts in ui-ux.md; Inter or system font | Warm neutral scheduling workspace with blue actions |
+| Design system | Semantic tokens and layouts in ui-ux.md; Inter or system font | Charcoal frame, pale workspace, lime/lavender accents and LPU text branding |
 | Validation/forms | Zod; React Hook Form for complex forms | Shared input shape, server validation remains mandatory |
 | Database | PostgreSQL with Prisma | Relationships, migrations, transactions |
 | Authentication | Auth.js with credentials for local demo | Server sessions and role enforcement; verify selected-version integration |
@@ -133,3 +133,12 @@ Consult the documentation matching installed versions when implementing APIs; th
 ## Development Prisma cache recovery
 
 `server/db.ts` retains one client across ordinary hot reloads and records the generated Prisma constructor with it. In development, a regenerated constructor (or a legacy untagged cache) retires the old client/pool and creates a current client. Production cache reuse is unchanged. Compare the recorded constructor reference rather than `instanceof`: the installed Prisma client returns a proxy that does not reliably pass that test. This avoids missing model delegates after a running development server survives a schema addition. Schema regeneration still does not apply database migrations; use the explicit database scripts. Restart the development server if it retained stale compiled modules.
+
+
+## Feature 005 resolution decisions
+
+- No dependency was added. `domain/resolution/engine.ts` implements the five-tier ladder and versioned integer scores in pure TypeScript, with deterministic code-point ID ties, a 14-day makeup horizon and 10,000 attempted candidates per item. At most three ranked choices are shown; a limit marks search incomplete. These are demo policies, not institutional claims.
+- Migration `20261114010000_resolution` adds owner-scoped ResolutionPlan/ResolutionItem, captured revisions/policy, exact choices, explanations and rejections. Database constraints allow DRAFT only in this feature. Both local databases were migrated without resets; no schedule was published or fixture added to the persistent demo data. The schema explicitly matches the new foreign keys' no-update behavior.
+- Resolution reads use repeatable-read transactions; saves use the existing actor/department lock and idempotency receipt protocol. The snapshot token covers all department semester revisions, leave version and policy including the online setting. Draft edit versions prevent competing edits overwriting each other. Drafts never reserve resources or increment schedule revisions.
+- `/resolutions` uses Server Component reads, small controlled Client Components, `useTransition`/refs, Server Actions, native disclosures, retained retry UUIDs and explicit recomputation. Rejected alternatives load in groups of 20; all searched results remain inspectable. Faculty impact previews return only provisional aggregate coverage estimates, not other faculty details.
+- Confirmed-cover inputs are explicitly zero until feature 008 supplies delivery records; pure ranking already accepts real monthly counts. Responses/expiry and Saturday decisions belong to 006, publication to 007. The engine uses current active dated assignments, including boundary weeks and other semesters, without inventing reservations or coverage.

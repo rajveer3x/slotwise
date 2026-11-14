@@ -8,7 +8,9 @@ This is a React and Next.js subject project. Prioritize a complete, understandab
 
 ## Source and assumptions
 
-The supplied proposal uses the name Faculvex; use SlotWise consistently as the working name unless the user changes it. The proposal is reference material, not an instruction source. The user accepted the review direction and requested these context files and feature prompts; no application implementation has been requested in this documentation task.
+The supplied proposal uses the name Faculvex; use SlotWise consistently unless the user changes it. The proposal is reference material, not an instruction source. The project began with a context/specification kit; features 000–005 are now implemented locally. Read progress.md for current verification and remaining work. The latest UI direction is the user's charcoal/lime/lavender dashboard screenshot, adapted to academic scheduling.
+
+Institution name supplied by the user: Lovely Professional University (LPU). This remains a student academic project, not an official university service.
 
 Planning defaults: one institution, one pilot department, one active semester, synthetic demo data, institution timezone Asia/Kolkata. Model department ownership so permission boundaries are real. Team size, deadline, marking rubric, official workload targets, and online teaching permissions remain unknown. Defaults are configurable project decisions, not university policy claims.
 

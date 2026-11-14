@@ -7,6 +7,6 @@ export const leaveCommand = z.discriminatedUnion("operation", [
   z.object({ operation: z.enum(["approve", "reject", "withdraw"]), requestId: z.uuid(), leaveId: id, expectedVersion: z.number().int().positive(), rejectionReason: z.string().trim().max(2000).optional() }).strict(),
 ]);
 export type ImpactClass = { id: string; date: string; startMinute: number; endMinute: number; minutes: number; course: string; section: string; room: string };
-export type LeaveImpact = { classes: ImpactClass[]; minutes: number; revision: number };
+export type LeaveImpact = { classes: ImpactClass[]; minutes: number; revision: number; coverage?: { possible: number; unresolved: number; searchComplete: boolean; tiers: { tier: number; count: number }[] } };
 export type LeaveResult = { ok: boolean; message: string; code?: string; fieldErrors?: Record<string, string[]>; leaveId?: string; impact?: LeaveImpact };
 export const leaveLabels = { SUBMITTED: "Pending approval", APPROVED: "Approved leave", REJECTED: "Rejected", WITHDRAWN: "Withdrawn" };

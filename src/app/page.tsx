@@ -42,16 +42,16 @@ export default function HomePage() {
     <PublicShell><main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8 md:py-12">
       <section aria-labelledby="welcome-title" className="mb-8 grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div>
-          <p className="mb-4 text-sm font-medium text-text-secondary">A calmer way to plan teaching</p>
+          <p className="eyebrow mb-4">LOVELY PROFESSIONAL UNIVERSITY · SLOTWISE</p>
           <h1 id="welcome-title" className="max-w-xl text-[32px] leading-[1.15] font-semibold tracking-[-0.02em] md:text-5xl">A clearer week.<br />Room for change.</h1>
-          <p className="mt-6 max-w-xl text-text-secondary">Timetables change. Teaching still matters. SlotWise is being built to help university departments organize classes and work through faculty leave, one considered decision at a time.</p>
+          <p className="mt-6 max-w-xl text-text-secondary">A little structure for everything ahead. Bring your department’s classes, teaching commitments and leave recovery into one thoughtfully organized workspace.</p>
           <Link href="/login" className={buttonClassName("primary", "mt-6")} aria-describedby="login-availability">Sign in <ArrowRight size={16} aria-hidden="true" /></Link>
           <p id="login-availability" className="mt-3 text-sm text-text-secondary">Sign in with an active local demo account.</p>
         </div>
         <aside className="rounded-panel border border-border-subtle bg-surface-subtle p-6" aria-labelledby="preview-title">
           <span className="inline-flex rounded-full bg-warning-tint px-3 py-1 text-xs font-medium text-warning">Local demo</span>
           <h2 id="preview-title" className="mt-4 text-lg font-semibold">Your workspace starts here.</h2>
-          <p className="mt-3 text-sm text-text-secondary">Account access and role dashboards are ready. Timetable editing and leave workflows are planned for later features.</p>
+          <p className="mt-3 text-sm text-text-secondary">Plan your timetable, understand the impact of leave, and compare explained recovery options. Cover responses and recovery publication are the next steps in this academic project.</p>
           <div className="mt-6 border-t border-border-subtle pt-4 text-sm text-text-secondary">A React &amp; Next.js subject project.<br />No real university records are used.</div>
         </aside>
       </section>

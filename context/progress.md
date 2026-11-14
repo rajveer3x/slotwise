@@ -4,7 +4,7 @@ Last updated: 2026-11-14
 
 ## Verified current state
 
-Features 000–004 are implemented and verified locally. Feature 004 adds `/leave`: scoped leave requests, read-only impact previews against real dated occurrences, owner withdrawal and transactional separate-HoD approval/rejection. Approval cancels current future teaching, releases reservations, retains obligations/delivery, increments affected revisions and audits once. Timetable publication respects approved absence and protects leave-linked cancellations. Features 005–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time; the feature 004 handoff, follow-up verification and live-development recovery records below are current.
+Features 000–005 are implemented locally. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Cover responses, exceptions and recovery publication remain features 006–007; features 006–017 remain unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -15,7 +15,7 @@ Features 000–004 are implemented and verified locally. Feature 004 adds `/leav
 | 002 | Master data and demo fixtures | 001 | Complete; local persistence, scope, browser and seed checks verified |
 | 003 | Timetable and clash detection | 002 | Complete; local constraints, transactions, concurrency and browser checks verified |
 | 004 | Leave requests and impact preview | 003 | Complete; dated impact, transactions, permissions, concurrency and browser flow verified |
-| 005 | Explainable resolution engine | 004 | Not started |
+| 005 | Explainable resolution engine | 004 | Complete; pure rules, durable drafts, scope, concurrency and browser checks verified |
 | 006 | Substitute response and Saturday approval | 005 | Not started |
 | 007 | Change preview and publication | 006 | Not started |
 | 008 | Delivery and contact-minutes ledger | 007 | Not started |
@@ -37,8 +37,8 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 - PostgreSQL, Prisma and Tailwind are installed/verified; feature 001 adds stable NextAuth.js v4 and Argon2. tech.md owns installed versions and commands.
 - Demo policy and state transitions are documented in domain-rules.md. Keep configurable policy distinct from actual university requirements.
 - No real personal or historical university data supplied. All demo metrics must be labelled synthetic.
-- Documentation creation is complete; foundation application code now exists. Authentication, master data, manual timetable publication and leave approval are implemented; recovery recommendations and publication remain pending.
-- UI design revision: adapt the supplied Notion marketing reference into SlotWise's warm neutral workspace, readable data layouts and blue action palette. ui-ux.md owns the implementation design; reference-specific instructions and exact marketing measurements are not requirements.
+- Documentation creation is complete; foundation application code now exists. Authentication, master data, manual timetable publication and leave approval are implemented; recovery recommendations and draft plans are implemented; cover responses and recovery publication remain pending.
+- Current UI design: the user's latest dashboard screenshot and implemented charcoal/lime/lavender LPU workspace supersede the initial blue/flat Notion direction. ui-ux.md owns the design and future UI file-creation rules; reference-specific instructions are data, not project requirements.
 - Animmaster Lib, Skiper UI and Vengeance UI are optional sources. No component package or paid code was installed; project-owned CSS/shadcn primitives remain the baseline. Check the exact component before adoption.
 
 ## Open inputs
@@ -47,7 +47,7 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Stop after feature 004 as requested. Feature 005 (explainable resolution engine) is next only on a separate request. Approved leave now links cancelled dated occurrences to retained unresolved obligations; feature 005 can query these and approved absences without inventing coverage counts. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Stop after feature 005 as requested. Feature 006 (substitute responses and Saturday approval) is next only on a separate request. Resolution drafts now retain exact candidate fingerprints, reasons, policy and revision snapshots without changing teaching. Feature 007 will own publication after those responses/approvals exist. The inherited supported-lint-toolchain migration remains a separate maintenance item.
 
 ## Documentation verification
 
@@ -476,3 +476,103 @@ Final checks with Node 24.22.3:
 | `git diff --check` | Passed. |
 
 No new unfinished product criteria remain from this incident. Inherited ESLint support and pg deprecation maintenance notes still apply. Relevant Next.js concept: hot reload preserves process globals, so a regenerated database client needs explicit cache invalidation; fresh-process test success must be supplemented by checking the actual long-running development app. Feature 005 remains outside this request.
+
+
+## Feature 005 handoff — 2026-11-14
+
+**Status:** complete for the requested local-demo scope; all six acceptance criteria verified. Feature 006 was not started. No resolution was published, no dependency installed, no commit/push/deployment performed, and no persistent teaching or seed fixtures were created.
+
+### Changes and boundaries
+
+- Read AGENTS, overview/progress, domain rules, architecture, tech, UI/UX, common contract and spec 005; verified actual 004 services, dated cancellations, retained obligations, absence guards and transaction protocol before implementation.
+- `src/domain/resolution/engine.ts`: pure deterministic TypeScript over an immutable resource/occurrence snapshot, explicit current time, versioned policy and decisions. Implements Substitute → Swap → Weekday → Online → Saturday, first viable tier/up to three ranked choices, exact qualifications, positive-target substitute ratios/monthly-cover/ID ties, integer score contributions and human-readable rule codes. Checks complete slots, lab suitability/capacity, full availability, approved leave, holidays/semester/current-time boundaries, half-open overlaps and daily/weekly limits, including retained weeks and other semesters.
+- Swaps preserve course/teacher/section/duration and validate both destinations atomically. Only eligible future pending same-section/same-type equal-duration classes can swap; previously selected batch assignments cannot be moved by a later swap. The 14-day horizon applies to makeups; swaps may use another future class before leave or later in the semester if both destinations pass. Changing a choice reruns the stable greedy batch; incompatible retained choices are surfaced, never saved as competing reservations.
+- Online removes only the room requirement, requires enabled policy, and excludes labs. Saturday is a separate exact-candidate approval tier with recorded earlier-tier explanations. Missing resources leave an obligation unresolved. The default 10,000-attempt limit marks incomplete search and never claims proven infeasibility. Greedy processing is labelled as such, without a global-optimality claim.
+- `prisma/schema.prisma`, migration `20261114010000_resolution`: owner/department/approved-leave scoped ResolutionPlan and ResolutionItem, draft edit versions, base/all-department revisions, policy snapshot, exact selected fingerprints, explanations and explicit rejection reasons. Database constraints permit DRAFT only; foreign keys preserve referenced records. Both databases were migrated additively without resets; schema diff is empty.
+- `src/server/services/resolutions.ts`, `src/features/resolutions/{schema,actions,components}`, `/resolutions/page.tsx`: scoped Server Component reads, authorized Zod-validated recomputation/saves, actor/dept locking, independent edit-version/revision checks, actor/payload-bound retry receipts and transactional audit. Saves re-solve the selected batch and capture current policy/revisions. Read/compute writes nothing; saving never changes occurrences, reservations, delivery, schedule revision or notifications. Separate managers have separate owned drafts.
+- Board: affected-class master/detail layout; static labelled tier ladder; candidate explanations, score/rank disclosures, complete rejected-alternative totals and inspectable groups of 20; required rejection reasons and restore action; keyboard selection; retained choices/retry keys; pending/error/success/stale feedback; explicit recompute and invalid-selection clearing. Mobile stacks; touch disclosures have 48px targets and selectable controls use visible boundaries.
+- Leave preview now returns only aggregate provisional greedy coverage estimates for a hypothetical approved absence, avoiding duplicate temporary use of a free interval. `src/server/services/leave.ts`, `src/features/leave/{schema,components}` add the estimate; no other faculty identities/private reasons are returned to the requester. Shell/dashboard/coordinator leave details link to the new board.
+- Tests: `tests/unit/resolution.test.ts`, `tests/integration/resolution.test.ts`, `tests/e2e/resolution.spec.ts`, `tests/support/resolution-fixture.ts`; timetable fixture cleanup includes draft dependencies. All records are project-authored synthetic fixtures in isolated `slotwise_auth_test`, with 2099 dates. No test database reset was used.
+
+### Acceptance evidence
+
+| Criterion | Evidence |
+| --- | --- |
+| 1. Qualified available substitutes, deterministic ordering/reasons | Unit tests check exact qualification, target configuration, ratio, cover count, stable IDs and explanations. |
+| 2. Valid equal-duration two-class swaps | Both assignments independently pass hard constraints; invalid incoming leave/duration/section, selected-partner contention and before-leave/beyond-makeup-window boundaries are tested. |
+| 3. Competing batch items cannot occupy one resource interval | Unit re-solving exposes the invalid later choice; real service rejects the whole competing draft with no partial plan. |
+| 4. Disabled online/labs never offer online | Unit tests check policy/type exclusions, null-room semantics and unchanged teacher/leave constraints. |
+| 5. No option remains unresolved | Unit, integration and browser tests show no forced assignment; board retains explicit reasons and empty/unresolved states. |
+| 6. Same snapshot/policy gives matching output; incomplete is honest | Frozen snapshots, reversed input ordering, stable ties and an intentionally exhausted search are tested. |
+
+### Commands and actual results
+
+Used Node **24.22.3** via `PATH=/tmp/slotwise-node/node_modules/node/bin:$PATH`; existing npm packages, PostgreSQL and installed Google Chrome. No install was required.
+
+| Command/check | Actual result |
+| --- | --- |
+| `npm run db:validate` | Passed; valid schema. |
+| `npm run db:test:migrate` / `npm run db:migrate` | Passed; additive migration applied to isolated test and persistent local databases. |
+| `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` | Passed; empty diff after explicitly matching no-update foreign keys. |
+| `npm run db:check` | Passed; real Prisma PostgreSQL SELECT 1. |
+| `npm run typecheck` / `npm run lint` | Passed, including tests and the final UI; zero lint warnings. |
+| `npm test` | **45/45**, eight files; **13 resolution tests** exercising all tiers, constraints, scoring/ties, immutable snapshots, batch contention and search boundaries. |
+| `npm run test:integration` | **59/59**, including **8 resolution tests**: real draft persistence/ownership/revision/policy capture, read-only compute/estimates, direct forbidden/anonymous/revoked/foreign access, exact concurrent retries, competing edits, stale revisions, batch rejection, explicit reasons and late-failure rollback. Existing scheduling/leave/authorization regressions pass. |
+| `npm run build` / `npm run check:client-bundle` | Passed; production dynamic `/resolutions`; **34** client bundles contain no Prisma, database URLs or configured secrets. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | **55/55**, including **7 resolution tests**, against a production server and isolated database. All existing auth/master-data/timetable/leave regressions pass. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/resolution.spec.ts` | **7/7** again after final touch-target/boundary and semantic-markup polish, with a rebuilt production app. |
+| Signed-in live development check | Existing coordinator account successfully loaded `http://127.0.0.1:3000/resolutions`; read-only, no runtime/workspace failure, no credentials printed. |
+| `git diff --check` | Passed. |
+
+The first new integration run exposed negative zero in integer score contributions: the immediate save returned JavaScript `-0`, while JSON receipt replay returned `0`. Normalized zero contributions; exact retry comparison and all final checks pass. The intentionally injected audit failures log a safe error and prove rollback; they are expected passing tests. No product failure was hidden by changing an assertion.
+
+### Visual/manual checks and demo
+
+- Captured loaded board screenshots at **320/390/768/1440px**, opened representative **1440/390px** screenshots and verified readable course/faculty wrapping, selected states, disclosures and master/detail stacking. Automated checks found no page-wide overflow or axe WCAG A/AA violations on those states. Keyboard-only candidate selection, native disclosure activation, pending/disabled actions, network-error retention, stale recomputation and **200% CSS layout scaling** with reduced motion passed. This is bounded browser QA, not exhaustive assistive-technology verification.
+- Browser draft demo selected and reloaded a saved candidate while retaining exactly **12 active reservations**, **2 cancelled originals**, **6 obligations**, semester revision **2**, pending delivery and **zero notifications**. Board responses omit private leave reasons/password data. No publication button exists.
+- Repeat: publish future classes using the existing timetable feature, submit leave as faculty, approve as a different HoD, then sign in as coordinator and open **Resolutions**. Inspect reasons/scores/rejections, select/reject/recompute, save and reload your own draft. To show unresolved, use synthetic data where no qualified available option remains; the automated browser fixture covers this state. Faculty **Preview impact** shows provisional estimates only. The persistent seed still publishes nothing; the demo semester ends **2026-12-18**.
+
+### Limitations, concepts and next step
+
+- No feature-005 acceptance criteria remain blocked/unverified locally. Demo-sized department snapshots and bounded deterministic greedy search are intentional; no global optimality, live push or institutional-policy claim is made. Input validation permits up to 200 class decisions and 100 explicit rejections per class. Large-scale search/pagination is future optimization.
+- Confirmed-cover counts currently default to zero because delivery records do not exist yet; pure ranking accepts monthly counts for later integration. Substitute invitation/response/expiry, Saturday decisions, meeting URL collection, recovery publication and delivery remain later features. A selected candidate means a draft choice only.
+- Inherited ESLint 9 support/deprecation and pg concurrency deprecation notes remain; lint/tests/build pass. No deployment or real university data was introduced.
+- React/Next.js concepts: protected Server Components and minimal serializable DTOs, controlled Client Components, `useState`/`useRef`/`useTransition`, typed reusable cards, native accessible disclosures, URL-selected leave, Server Actions, server authorization independent of navigation, route revalidation and inherited loading/error boundaries. Pure domain logic remains separate from Prisma transactions; draft versions, schedule revisions and retry keys solve different problems.
+- Updated shared facts in `architecture.md`, `tech.md`, `ui-ux.md`, README and this progress record. Domain policies/specs were preserved.
+- Next recommended feature: **006 substitute response and Saturday approval**, only when requested. Stop after feature 005; do not publish resolution plans.
+
+## UI refresh handoff — 2026-11-14
+
+**Scope:** presentation refresh of the implemented application through 005, using the user's supplied health-dashboard screenshot as composition/color inspiration. No 006 workflow was started.
+
+### What changed
+
+- `src/app/globals.css`: charcoal application frame, pale workspace, rounded white panels, lime/lavender/peach highlights, pill controls, refreshed tables/forms/timetable blocks and narrow-card/zoom reflow. Kept reduced motion and visible focus. Draggable class cards use a grab cursor and suppress accidental text selection.
+- `src/components/{app-shell,brand,public-shell}.tsx`: icon navigation, selected white pill, account initials, breadcrumb, Lovely Professional University/LPU text branding and a useful timetable shortcut. No official university logo, nonfunctional search or fabricated notification badge.
+- `src/app/(app)/dashboard/page.tsx`: real scoped semester/weekly counts, submitted leave counts, upcoming classes, schedule-summary circles and weekly bars using existing read services. Faculty totals filter to the user's faculty profile; students retain membership scope. Empty data remains visible as zero counts and informative states. These are scheduled counts, not attendance or delivered-teaching claims.
+- Landing, sign-in and root metadata now use the same identity and palette. Corrected the landing's stale statement that timetable/leave work had not been implemented. Recovery publication remains explicitly pending.
+- Updated overview, UI/UX, technology and architecture context so later feature agents follow the new style. The screenshot direction supersedes the earlier blue/flat visual guidance.
+- Strengthened existing auth browser checks to await the actual route heading before taking screenshots/auditing streamed pages. Positioned the conflicting drag destination before mouse-down in the existing drag test; the taller cards otherwise caused the test's automatic page scroll to interrupt native drag. Conflict and persisted-position assertions remain intact.
+- Preserved pre-existing uncommitted feature-005 work. No deployment, data reseed, schema change, third-party animation package or Git push was performed for this UI task.
+
+### Verification
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed after the application/test edits.
+- `npm test`: 45 tests passed across 8 files.
+- `npm run build`: production build passed with all existing routes.
+- `npm run check:client-bundle`: 34 client bundle files passed; no Prisma, database URL or configured secret value leak found.
+- `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e`: final full run passed all 55 tests in 50.8 seconds, including native drag conflict rejection, 320/390/768/1440 viewport cases, 200% layout zoom, keyboard/menu controls, reduced motion, axe audits and the existing end-to-end workflows.
+- Visually inspected desktop/mobile dashboard and desktop sign-in screenshots. Existing browser cases exercise 320/390/768/1440 widths, 200% layout zoom, keyboard/menu controls, reduced motion, axe checks, persisted timetable edits, leave approval and resolution drafts. Final results below distinguish actual passes from pending work.
+- Existing inherited lint/pg deprecation notes remain. No institutional-policy or production-readiness claim is added.
+
+### Concepts and next step
+
+The redesign demonstrates reusable React shell/components, responsive CSS Grid, semantic design tokens, container queries, server-rendered authorized aggregates and minimal client interaction boundaries. Existing scheduling validation/services remain the source of truth. Review the refreshed local application; feature 006 is still next only when requested.
+
+## Future UI implementation guidance — 2026-11-14
+
+- Clarified `context/ui-ux.md` as the single UI guide (the file the user calls ui.md). Added exact existing source references, protected-page structure, shared-control and stylesheet reuse rules, and visual/functional handoff checks for new UI files.
+- Updated AGENTS.md and the feature-specification common contract so future agents read and apply the latest charcoal/lime/lavender LPU design before creating pages/components. Removed the current-decision wording that still pointed at the superseded blue palette; historical records remain unchanged.
+- Documentation-only follow-up. No application logic or styles changed and no feature 006 work began. The most recent application verification remains the UI-refresh run recorded above: 45 unit tests, 55 browser tests, typecheck, lint, production build and bundle checks passed. This does not assert exhaustive behaviour or verification of unimplemented features. The inherited supported-lint-toolchain maintenance limitation remains documented.
+- Added explicit feature-specific UI alignment sections and prompt instructions to specs 001–004. They already inherited the shared UI contract; the new wording makes their existing LPU layouts, control reuse and workflow-preservation requirements visible directly in each file. This is documentation alignment, not a request to reimplement completed features.

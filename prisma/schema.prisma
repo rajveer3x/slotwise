@@ -42,6 +42,8 @@ model Department {
   auditEvents AuditEvent[]
   leaveRequests LeaveRequest[]
   notifications Notification[]
+  resolutionPlans ResolutionPlan[]
+  resolutionItems ResolutionItem[]
 
 }
 
@@ -58,6 +60,7 @@ model User {
   memberships SectionMembership[]
   notifications Notification[]
   reviewedLeave LeaveRequest[] @relation("LeaveReviewer")
+  resolutionPlans ResolutionPlan[]
   @@unique([id, departmentId])
   @@index([departmentId])
 }
@@ -332,6 +335,7 @@ model TeachingObligation {
   @@unique([id, departmentId])
 }
 model ClassOccurrence {
+  resolutionItems ResolutionItem[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -424,6 +428,7 @@ enum LeaveStatus {
   WITHDRAWN
 }
 model LeaveRequest {
+  resolutionPlans ResolutionPlan[]
   id String @id @default(cuid())
   departmentId String
   department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
@@ -445,4 +450,38 @@ model LeaveRequest {
   @@unique([id, departmentId])
   @@index([departmentId, facultyId, startDate, endDate])
   @@index([departmentId, status, createdAt])
+}
+
+// Drafts hold explanations and choices only. They never create reservations.
+model ResolutionPlan {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  leaveRequestId String
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  ownerId String
+  owner User @relation(fields: [ownerId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  status String @default("DRAFT")
+  version Int @default(1)
+  baseScheduleRevision Int
+  revisionSnapshot Json
+  policySnapshot Json
+  snapshotToken String
+  items ResolutionItem[]
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@unique([leaveRequestId, ownerId])
+  @@unique([id, departmentId])
+}
+model ResolutionItem {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  planId String
+  plan ResolutionPlan @relation(fields: [planId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  occurrenceId String
+  occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  selectedCandidateId String?
+  rejectedCandidates Json
+  explanation Json
+  @@unique([planId, occurrenceId])
 }

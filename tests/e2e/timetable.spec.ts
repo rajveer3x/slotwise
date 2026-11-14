@@ -57,7 +57,11 @@ test("drag move persists and conflicting drop leaves the saved class in place", 
   await block.dragTo(page.locator('[data-drop="2-540"]'));
   await expect(page.getByRole("heading", { name: "Weekly draft · Version 2" })).toBeVisible();
   expect((await db.timetableEntry.findFirstOrThrow({ where: { timetableVersionId: draft.id, allocationId: f.allocations[0].id } })).weekday).toBe(2);
-  await expect(block).toHaveAttribute("draggable", "true"); await block.dragTo(page.locator('[data-drop="1-600"]'), { sourcePosition: { x: 12, y: 12 }, targetPosition: { x: 8, y: 8 } });
+  const conflictSlot = page.locator('[data-drop="1-600"]');
+  // Position the taller card and destination before pressing the mouse;
+  // scrolling the page mid native drag can cancel the browser's drag session.
+  await conflictSlot.scrollIntoViewIfNeeded();
+  await expect(block).toHaveAttribute("draggable", "true"); await block.dragTo(conflictSlot, { sourcePosition: { x: 12, y: 12 }, targetPosition: { x: 8, y: 8 } });
   await expect(page.getByRole("region", { name: "Conflict explanations" })).toContainText("overlaps");
   await expect(page.locator('[data-drop="2-540"]')).toContainText("CS101");
 });

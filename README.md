@@ -1,6 +1,6 @@
 # SlotWise
 
-A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–004** provide the application foundation, credential authentication, role-scoped master data, manual dated timetable publication, and leave requests with read-only impact previews and transactional HoD decisions.
+A React and Next.js subject project for university timetables and faculty leave recovery. Features **000–005** provide the application foundation, credential authentication, role-scoped master data, dated timetables, transactional leave decisions, and explainable draft leave resolutions.
 
 ## Run locally
 
@@ -106,14 +106,23 @@ The single-process in-memory limiter is suitable only for this local demo; use a
 
 Actual check results and the existing ESLint 9 support limitation are in [progress](context/progress.md). Auth integration details and official references are in [technology](context/tech.md). No deployment is provided.
 
+## Draft resolution demo (005)
+
+After publishing a future timetable, request leave as faculty and approve it as a different HoD. As `coordinator@demo.slotwise.test`, open **Resolutions**, select approved leave and inspect the first viable tier. Expand score/eligibility and rejected alternatives; select a candidate, inspect how later classes change, and save/reload your own draft. Rejections require reasons. Recompute after a stale schedule or draft warning. Faculty **Preview impact** also shows provisional greedy coverage estimates without naming other teachers.
+
+The engine searches Substitute → Swap → Weekday → Online → Saturday. Makeups use the 14 days following the original date, bounded by semester end/current time; Saturday requires configured slots/availability and a later HoD exception. Online is disabled by default and never allowed for labs. A search limit reports incomplete results; no feasible option leaves the class unresolved. Demo weights/limits live in `src/domain/resolution/engine.ts`; they are not university policy.
+
+Drafts reserve nothing and never publish. Cover invitations/responses and Saturday approval are feature 006; recovery preview/publication is feature 007. Confirmed-cover counts are currently zero because no delivery records exist yet. The persistent seed publishes no schedule or resolution; tests use project-authored 2099 fixtures in the isolated database. The current demo semester ends 2026-12-18.
+
 ## React and Next.js concepts to explain
 
-- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable` and `/leave`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
-- **Server Components:** dashboard/admin/timetable/leave pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
+- **App Router/layouts:** `/login` is in `(auth)`; `(app)` supplies the protected shell for `/dashboard`, `/admin`, `/timetable`, `/leave` and `/resolutions`. Route groups do not add URL segments. Loading and error boundaries give feedback while account data is resolved.
+- **Server Components:** dashboard/admin/timetable/leave/resolution pages fetch scoped data on the server. Only minimal account view models and rendered page content cross into the interactive shell; Prisma, hashes and secrets stay in `server-only` modules.
 - **Client Components/hooks:** login and logout use React state for pending/error feedback; the menu uses refs and a native modal dialog. Account forms use React 19 `useActionState`.
 - **Server Actions:** the account-access action validates form input, calls the authorization service, commits the database transaction and revalidates `/admin/accounts`. Master-data actions revalidate `/admin`, use Zod schemas, version checks and transactionally stored retry receipts. Stale state produces a refresh message.
 - **Scheduling state:** pure TypeScript functions validate immutable placement snapshots. The editor uses controlled state, refs and `useTransition`; Server Actions revalidate and transact independently of the preview. Draft versions, schedule revisions and idempotency receipts solve different concurrency problems.
 - **Leave state:** request status/version and schedule revision serve different purposes. A preview is a read-only snapshot; a HoD decision authorizes a transaction that re-queries dated occurrences. Controlled form state survives errors/refresh; the server independently checks identity, ownership and status.
+- **Resolution state:** pure deterministic rules consume an immutable resource snapshot; controlled Client Components hold draft choices and use Server Actions to recompute the batch. Database drafts have separate edit versions and capture policy/revisions. Selection, acceptance, publication and delivery are distinct states.
 - **Authentication and authorization:** Auth.js verifies credentials and signs/encrypts the session token using its CSRF flow. The server independently reloads current permissions. Hiding a navigation link is presentation, not a permission check.
 - **Typed reusable UI:** Button, Input, PublicShell and AppShell use typed props and semantic design tokens. Server-rendered `children` can pass through a Client Component without making those page modules client-side code.
 
@@ -131,5 +140,5 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 004; later features require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. No real university records or measured impact metrics are presented. Work stops after feature 005; later features require a separate request.
 # slotwise

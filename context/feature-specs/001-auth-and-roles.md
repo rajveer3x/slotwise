@@ -4,7 +4,13 @@ Scope: MVP. Dependencies: 000.
 
 ## Goal and flow
 
-Users sign in with seeded local credentials and see the correct role-scoped navigation. Implement login/logout, server session resolution, active-user checks and a minimal dashboard for ADMIN, COORDINATOR, HOD, FACULTY and STUDENT. No public registration, SSO, role selector or password recovery service is required.
+Users sign in with seeded local credentials and see the correct role-scoped navigation. Implement login/logout, server session resolution, active-user checks and a role-appropriate dashboard for ADMIN, COORDINATOR, HOD, FACULTY and STUDENT. No public registration, SSO, role selector or password recovery service is required.
+
+## UI alignment
+
+Follow [ui-ux.md](../ui-ux.md), especially “Creating future UI files”. Use the implemented LPU split sign-in layout: charcoal story panel, white credential card, lime/lavender accents and clear labelled inputs. Authenticated pages use the existing charcoal AppShell, white active navigation pill and account bar. Account-access controls reuse the current rounded panels and shared Button/Input patterns. Dashboard content grows with available features and must use authorized real records or honest empty states.
+
+This feature is already implemented; inspect and preserve the existing authentication/session logic when maintaining its UI. Reuse the current files rather than scaffolding a second login, dashboard or shell. Keep keyboard access, validation, pending and generic failure states working.
 
 ## Data and server operations
 
@@ -29,7 +35,9 @@ Integration-test role and department rejection, revocation, password verificatio
 
 ```text
 Read AGENTS.md and relevant context. Implement
-context/feature-specs/001-auth-and-roles.md. Verify foundation first;
+context/feature-specs/001-auth-and-roles.md. Read context/ui-ux.md and
+reuse the implemented charcoal/lime/lavender LPU layout and controls.
+Inspect existing feature code before changing it. Verify foundation first;
 build real authentication and scoped server authorization, not a mock
 role switch. Follow the common completion contract and update progress.
 ```

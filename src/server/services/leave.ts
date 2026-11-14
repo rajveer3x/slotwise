@@ -8,6 +8,7 @@ import { leaveDateError } from "@/domain/leave/rules";
 import { localDate, instant } from "@/domain/scheduling/timetable";
 import { leaveDates, leaveCommand, type LeaveImpact, type LeaveResult } from "@/features/leave/schema";
 import type { Tx } from "./scheduling-store";
+import { estimateResolution } from "./resolutions";
 
 class LeaveError extends Error {
   constructor(public code: string, message: string, public field?: string) { super(message); }
@@ -60,7 +61,10 @@ export async function readLeaveImpact(actorId: string | null, input: unknown): P
       const actor = await actorFor(tx, actorId), faculty = await owningFaculty(tx, actor, true);
       const semester = await semesterFor(tx, actor.departmentId, dates.semesterId);
       checkDates(dates.startDate, dates.endDate, semester);
-      return { ok: true, message: "Provisional preview only. No classes or reservations were changed.", impact: impactFor(await affected(tx, actor.departmentId, faculty.id, dates.startDate, dates.endDate), semester.scheduleRevision) };
+      const rows = await affected(tx, actor.departmentId, faculty.id, dates.startDate, dates.endDate);
+      const impact = impactFor(rows, semester.scheduleRevision);
+      impact.coverage = await estimateResolution(tx, actor.departmentId, rows.map(o => o.id), { facultyId: faculty.id, startDate: dates.startDate, endDate: dates.endDate });
+      return { ok: true, message: "Provisional preview only. No classes or reservations were changed.", impact };
     }, { isolationLevel: "RepeatableRead" });
   } catch (error) { return failure(error); }
 }
@@ -85,7 +89,7 @@ export async function readLeaveWorkspace(actorId: string | null, leaveId?: strin
     }
     const semesters = await tx.semester.findMany({ where: { departmentId, archived: false, endDate: { gte: localDate() } }, select: { id: true, name: true, startDate: true, endDate: true, scheduleRevision: true }, orderBy: [{ active: "desc" }, { startDate: "asc" }] });
     const eligibleApprover = profile ? await tx.user.count({ where: { departmentId, role: "HOD", active: true, id: { not: actor.id } } }) > 0 : false;
-    return { requests, detail, semesters, today: localDate(), canSubmit: !!profile && !profile.archived && ["FACULTY", "HOD"].includes(actor.role), eligibleApprover };
+    return { requests, detail, semesters, today: localDate(), canSubmit: !!profile && !profile.archived && ["FACULTY", "HOD"].includes(actor.role), canResolve: ["COORDINATOR", "ADMIN"].includes(actor.role), eligibleApprover };
   }, { isolationLevel: "RepeatableRead" });
 }
 export type LeaveWorkspace = Awaited<ReturnType<typeof readLeaveWorkspace>>;
