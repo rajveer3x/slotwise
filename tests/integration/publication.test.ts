@@ -181,7 +181,7 @@ test("a notification retains the old assignment and follows the current occurren
   const historic = (await readNotification(f.student.id, original.id)).changes[0];
   assert.equal(historic.status, "Historical assignment · superseded");
   assert.equal(historic.after, original.changes[0].after);
-  assert.equal(historic.timetableHref, `/timetable?semester=${f.semester.id}&week=${newDate}`);
+  assert.equal(historic.timetableHref, `/timetable?semester=${f.semester.id}&week=${newDate}&resource=${assignment.sectionId}`);
   assert.equal((await changeNotification(f.student.id, { notificationId: original.id, operation: "acknowledge" })).ok, true);
 }));
 

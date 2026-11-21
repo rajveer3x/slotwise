@@ -96,6 +96,8 @@ Circular dashboard summaries use compact labelled rows when their card's availab
 
 Keep day headers and time column legible; sticky regions must not hide focused elements. A block prioritizes course code/title, time, then teacher and room. Use a restrained pale course palette with dark labels; reserve red conflicts and amber warnings for operational states. Show explicit status text rather than interpreting course color as status.
 
+The published timetable opens on a single section in the Section view. Staff can choose another section or explicitly choose **All sections** to compare simultaneous classes. Label each class with its section when the schedule can show multiple sections. Highlight the current view and show the selected resource above the week. Keep the start and end time visible and mark an active class that continues through another displayed start time. The published agenda uses the same class details on phones.
+
 Selected class: charcoal outline with contrasting offset. Conflict: danger outline plus icon/text and linked explanation. Cancelled original: muted treatment with “Cancelled”; replacement: explicit “Rescheduled” label and original-date reference. Delivery is a separate label. Derive labels from real domain state, not optimistic guesses.
 
 Drag feedback may use a subtle lifted shadow and valid-target outline. A rejected move returns to its original location with a conflict explanation; never silently relocate other classes. Every drag action also has a Move class form with day/time/room controls. Hover cannot be the only way to read a block or expose an action. Keyboard/screen-reader users can inspect and move classes without emulating drag.
@@ -284,3 +286,7 @@ The weekday candidate panel in Resolutions includes a disclosure for selecting p
 ## Implemented what-if simulation UI (016)
 
 The manager-only **What-if simulation** workspace reuses the shell, shared controls and rounded panels. A labelled form selects a room or faculty member and inclusive local dates. The result shows baseline revisions and policy, feasibility and search status, published and projected assignments, rejected-option reasons and a readable weekly workload table. The open page keeps one result, with explicit baseline check and recompute controls. On narrow screens, comparisons stack and the workload table scrolls within its labelled region.
+
+## Implemented emergency cover UI (017)
+
+The Class recovery candidate panel shows the launch control for upcoming same-day leave classes. **Cover & exceptions** shows scoped offers, the local deadline, pending publication, closed offers, expiry, and the coordinator’s fallback proposal. Both surfaces use shared Button and schedule panel styles. Review links lead back to the existing draft and Before / After publication flow. Refresh loads server state and stale actions show explicit feedback.

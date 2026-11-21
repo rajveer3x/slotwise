@@ -43,6 +43,18 @@ After changing the Prisma schema, run `npm run db:generate` and apply its migrat
 
 `db:migrate` applies checked-in migrations without resetting data. Feature 001 adds Department, User, Role, a unique normalized email constraint and the department foreign key. Feature 002 adds semesters/holidays, faculty/availability, courses/qualifications, sections/memberships, rooms, teaching slots, allocations and mutation receipts. Composite foreign keys enforce department ownership. The seed creates two Computing sections, six faculty profiles, four courses, three rooms including a lab, a semester, memberships and their linked teaching configuration; Design contains a smaller isolation fixture. All capacities, workload limits and identities are project-authored demo examples. Reruns preserve existing records and credentials without resetting data.
 
+## Start with a populated demo
+
+After `npm run db:seed`, run `npm run db:seed:scenario` to populate the local Computing demo with a published timetable and a pending leave request. The command uses the existing synthetic classes, rooms, and accounts. It reuses an existing published timetable and preserves drafts, account access, and earlier leave decisions. It prints the timetable week and leave request links.
+
+1. Sign in as `student@demo.slotwise.test` and open the printed timetable link. Start with one Programming foundations class in section S1. Its card shows the teacher, room, and time.
+2. Sign in as `hod@demo.slotwise.test` in a separate browser profile. Open the printed leave link, review the affected class, and choose **Approve leave** when ready.
+3. Sign in as `coordinator@demo.slotwise.test` and open **Resolutions** to review recovery options for that request. Continue with the [full MVP demo](#full-mvp-demo-and-audit-history).
+
+The scenario is synthetic and uses the active Autumn 2026 Computing semester, which ends on 18 December 2026. The command chooses future classes and keeps the same leave example on reruns, including after it is decided. For a later semester or an independent replay, use the [browser demo fixture](#full-mvp-demo-and-audit-history).
+
+The published timetable opens on a single section. As coordinator, choose **S2** or **All sections** in the **Section** filter and select **Apply view**. The overview labels each section so parallel classes have visible context.
+
 ## Test the feature manually
 
 1. Sign in as faculty, inspect the faculty dashboard and reload. The account remains signed in. Sign out and visit `/dashboard`; authentication is required again.
@@ -128,9 +140,27 @@ The production-build Chrome walkthrough creates a synthetic lab closure in the i
 PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/simulation.spec.ts
 ```
 
+## Emergency cover demo (017)
+
+Apply migrations with `npm run db:migrate` and start the app. In a second terminal with the same environment and project dependencies, run `npm run worker:emergency`. Keep the worker running to process queued deadlines automatically.
+
+1. Publish a teaching day with a class later today in Asia/Kolkata. Have the assigned faculty submit leave covering today and a HoD approve it before class start. Use a class with two or more other qualified, available faculty.
+2. As coordinator, open **Resolutions**, choose the approved leave and class, and select **Launch emergency round**. The round lasts up to five minutes and closes at class start if sooner.
+3. In two separate browser profiles, sign in as invited faculty. Open **Cover & exceptions** from the in-app notification. Submit **Accept emergency offer** in both tabs. The winner sees **Filled · Pending publication**. The other tab receives **Already filled**.
+4. As coordinator, open **Cover & exceptions**, select **Review in Class recovery**, and choose **Check emergency winner**. Save the draft, review **Before / After**, then publish. If the winner is no longer eligible, cancel the round and re-launch while time permits, or choose another recovery option.
+5. Launch a separate round and let it expire. Refresh **Cover & exceptions** or **Notifications** to see the recorded fallback. Review the proposed next tier in Class recovery and use the same preview and publication steps.
+
+Offers and fallback updates are in-app and appear on navigation or refresh. Faculty may miss a short response window. A stopped worker delays the fallback until it resumes. The deadline still closes acceptance on time, and no assignment is made until the coordinator publishes.
+
+The production-build browser tests use a frozen, synthetic Monday and create their own classes and accounts in the isolated database. Run them separately from the regular browser suite.
+
+```sh
+SLOTWISE_TEST_NOW=2030-01-07T03:00:00.000Z PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/emergency-cover.spec.ts --workers=1
+```
+
 ## Leave demo
 
-First publish a future timetable as the coordinator (the seed creates teaching records, not dated classes). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose inclusive dates containing that faculty's published classes and select **Preview impact**. Check the real class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged.
+Begin with a future published timetable from the [populated demo](#start-with-a-populated-demo) or the [manual timetable demo](#manual-timetable-demo). Sign in as `faculty@demo.slotwise.test`, open **Leave & impact**, choose dates containing that faculty's published classes and select **Preview impact**. Check the class count and minutes, optionally enter a private reason, then submit. Submission and preview leave the timetable unchanged. If you loaded the populated demo, pick a different class date to submit an additional request.
 
 Sign out and sign in separately as `hod@demo.slotwise.test`. Open the pending request, review current impact and approve, or reject with a reason. Approval rechecks the current schedule, cancels future classes and releases reservations atomically while retaining obligations and pending delivery. As the student, open the relevant timetable week and enable **Include cancelled classes** to inspect cancellation without private leave reasons. Owners can withdraw pending requests. Zero-class leave is allowed; self-approval, past/overlapping dates and reopening closed requests are rejected. Recovery recommendations are in Resolutions; approved leave reversal remains outside the MVP.
 
@@ -202,7 +232,7 @@ Open **Classes owed** (`/classes-owed`) as coordinator, HoD or admin. Select a s
 
 Refresh detects concurrent corrections while preserving reason input for review. Database records and transactions protect credit independently of the displayed totals. Confirmation is teaching delivery, not student attendance. Partial delivery and split recovery remain outside the MVP.
 
-The persistent seed creates no past or published classes. For an immediate repeatable synthetic demo, run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/delivery.spec.ts` after building: it creates an ended 60-minute assignment in the isolated test database, demonstrates delivery/correction/recovery and removes its fixtures. Integration tests also follow an obligation from missed → future recovery (zero credit) → ended held recovery (60 minutes), using a controlled clock. For a manual persistent demo, publish a valid current/future class and wait until it ends; there is no premature-confirmation bypass.
+The populated demo starts with future classes. For an immediate repeatable synthetic demo, run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/delivery.spec.ts` after building: it creates an ended 60-minute assignment in the isolated test database, demonstrates delivery/correction/recovery and removes its fixtures. Integration tests also follow an obligation from missed → future recovery (zero credit) → ended held recovery (60 minutes), using a controlled clock. For a manual persistent demo, publish a valid current/future class and wait until it ends; there is no premature-confirmation bypass.
 
 ## Workload and leave recovery demo (009)
 
@@ -210,11 +240,11 @@ Sign in as HoD or coordinator and open **Workload**. Apply a date in a week with
 
 Open **Reports** and apply a date range that includes the affected class dates. The **Leave Recovery Report** counts unique affected obligations and shows weekday, Saturday and unresolved outcomes. Publish a recovery, apply the dates again, then confirm the recovery after it ends and refresh to see delivered counts update. The **How recovery is calculated** disclosure explains the denominator. Both dashboards label synthetic demo records.
 
-The persistent seed contains no published classes. For a repeatable demonstration with five affected obligations, build and run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/insights.spec.ts`. The isolated browser fixture shows 2 of 5 weekday recoveries, one Saturday, two unresolved and one confirmed delivery, then cleans up its records.
+For a repeatable demonstration with five affected obligations, build and run `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/insights.spec.ts`. The isolated browser fixture shows 2 of 5 weekday recoveries, one Saturday, two unresolved and one confirmed delivery, then cleans up its records.
 
 ## Full MVP demo and audit history
 
-Use the synthetic accounts in the setup table in separate browser profiles. Use `faculty2@demo-computing.slotwise.test` if the ranked candidate invites Faculty 2, or sign in as the other seeded faculty identified by the invitation. The seeded semester has no published classes. Place and publish a valid future timetable before starting the manual flow.
+Use the synthetic accounts in the setup table in separate browser profiles. Use `faculty2@demo-computing.slotwise.test` if the ranked candidate invites Faculty 2, or sign in as the other seeded faculty identified by the invitation. Start with the [populated demo](#start-with-a-populated-demo) or publish a future timetable yourself. If you use the pending demo request, start step 1 at HoD approval.
 
 1. **Faculty:** open **Leave & impact**, preview a date with published classes and submit. **HoD:** open that request in a separate session and approve it.
 2. **Coordinator:** open the approved request in **Resolutions**, inspect the ranked options, choose a substitute and save the draft. Send the exact cover invitation. **Invited faculty:** open **Cover & exceptions** and accept.
@@ -276,4 +306,4 @@ Development/build use Webpack because Turbopack's CSS worker failed on this host
 - [Authentication specification](context/feature-specs/001-auth-and-roles.md)
 - [Agent instructions](AGENTS.md)
 
-All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records. Optional features 016 and 017 require a separate request.
+All identities and timetable illustrations are project-authored synthetic examples. The measured reporting examples use synthetic records.

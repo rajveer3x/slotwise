@@ -7,6 +7,7 @@ import { AccessError, actorSelect, sessionIdentity } from "@/server/auth/session
 import { resolveBatch, type Decisions, type ResolutionSnapshot } from "@/domain/resolution/engine";
 import { resolutionCommand, resolutionDecisions, type Board, type ResolutionResult } from "@/features/resolutions/schema";
 import { consentHistory, expireCovers, invalidateItemConsent } from "./consent-store";
+import { skipEmergencySubstitutes } from "./emergency-store";
 import { resolutionSnapshot, type Tx, ScheduleError } from "./scheduling-store";
 
 export async function resolutionActor(tx: Tx, id: string | null) {
@@ -56,8 +57,18 @@ export async function buildResolutionBoard(tx: Tx, actor: Awaited<ReturnType<typ
   const automatic = history.filter(h => ["DECLINED", "EXPIRED", "REJECTED"].includes(h.status));
   const effective: Decisions = { selected: decisions.selected, rejected: { ...decisions.rejected } };
   for (const h of automatic) effective.rejected[h.occurrenceId] = [...(effective.rejected[h.occurrenceId] ?? []), { candidateId: h.candidateId, reason: h.kind === "cover" ? `Faculty response: ${h.status.toLowerCase()}.` : `HoD rejected: ${h.decisionReason ?? "See exception history."}` }];
+  const rounds = await tx.emergencyRound.findMany({
+    where: { departmentId, occurrenceId: { in: [...ids] } },
+    distinct: ["occurrenceId"], orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, status: true, occurrenceId: true },
+  });
+  const emergencyFallbacks = rounds.filter(round => round.status === "EXPIRED");
+  for (const round of emergencyFallbacks) {
+    const original = s.affected.find(o => o.occurrenceId === round.occurrenceId)!;
+    effective.rejected[round.occurrenceId] = [...(effective.rejected[round.occurrenceId] ?? []), ...skipEmergencySubstitutes(original, s)];
+  }
   const revisions = s.semesters.map(({ id, scheduleRevision }) => ({ id, scheduleRevision }));
-  const token = createHash("sha256").update(JSON.stringify({ revisions, policy: s.policy, onlineEnabled: s.onlineEnabled, leaveVersion: leave.version, responses: automatic.map(h => [h.id, h.status]) })).digest("hex");
+  const token = createHash("sha256").update(JSON.stringify({ revisions, policy: s.policy, onlineEnabled: s.onlineEnabled, leaveVersion: leave.version, responses: automatic.map(h => [h.id, h.status]), ...(emergencyFallbacks.length && { emergencyFallbacks: emergencyFallbacks.map(r => r.id).sort() }) })).digest("hex");
   const labels: Record<string, string> = {};
   for (const f of s.data.faculty) labels[f.id] = f.name;
   for (const r of s.data.rooms) labels[r.id] = r.code;

@@ -29,6 +29,9 @@ export async function timetableFixture(db: PrismaClient, passwordHash = "synthet
 }
 export async function cleanupTimetable(db: PrismaClient, departmentId: string) {
   const where = { departmentId };
+  await db.emergencyRound.updateMany({ where: { ...where, status: "WON" }, data: { status: "CANCELLED", winnerUserId: null } });
+  await db.emergencyOffer.deleteMany({ where });
+  await db.emergencyRound.deleteMany({ where });
   await db.pollVote.deleteMany({ where });
   await db.makeupPollOption.deleteMany({ where: { poll: where } });
   await db.makeupPoll.deleteMany({ where });

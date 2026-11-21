@@ -51,6 +51,47 @@ test("manual placement rejects overlap, applies a suggested repair, previews and
   await page.getByRole("button", { name: "Sign out", exact: true }).click(); await expect(page).toHaveURL(/\/login/); await login(page, f.student.email); await page.goto(`/timetable?week=2099-01-05`); await expect(page.locator(".timetable-desktop")).toContainText("CS101"); await expect(page.getByRole("button", { name: "Create draft", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Sign out", exact: true }).click(); await expect(page).toHaveURL(/\/login/); await login(page, f.outsider.email); await page.goto(`/timetable?week=2099-01-05`); await expect(page.getByText(/No published classes match/)).toBeVisible(); await expect(page.getByText(/CS101/)).toHaveCount(0);
 });
+test("published timetable defaults to one section and labels valid parallel classes in All sections", async ({ page }, testInfo) => {
+  const { departmentId, semester, section2, room2 } = f;
+  await db.section.update({ where: { id: section2.id }, data: { code: "S2" } });
+  const faculty = await db.faculty.create({ data: { departmentId, userId: f.hod.id, designation: "Lecturer", targetMinutesPerWeek: 720, maxMinutesPerDay: 240, maxMinutesPerWeek: 1080 } });
+  const courseId = f.allocations[0].courseId;
+  await db.facultyQualification.create({ data: { departmentId, facultyId: faculty.id, courseId } });
+  await db.facultyAvailability.create({ data: { departmentId, facultyId: faculty.id, weekday: 1, startMinute: 540, endMinute: 600 } });
+  const allocation = await db.courseAllocation.create({ data: { departmentId, semesterId: semester.id, sectionId: section2.id, facultyId: faculty.id, courseId, weeklyPeriods: 1, requiredContactMinutes: 240 } });
+  f.entries.push({ ...f.entries[0], seriesId: randomUUID(), allocationId: allocation.id, roomId: room2.id });
+  const draft = await storedDraft();
+  await login(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`/timetable?draft=${draft.id}`);
+  await page.getByRole("button", { name: "Preview publication", exact: true }).click();
+  await page.getByRole("button", { name: "Publish 9 classes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Section S1", exact: true })).toBeVisible();
+
+  const grid = page.getByRole("region", { name: /Published timetable grid/ });
+  const firstSlot = grid.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "09:00", exact: true }) });
+  await expect(firstSlot.locator("article")).toHaveCount(1);
+  const filters = page.getByRole("form", { name: "Timetable filters" });
+  await filters.getByLabel("Section", { exact: true }).selectOption({ label: "All sections" });
+  await filters.getByRole("button", { name: "Apply view" }).press("Enter");
+  await expect(page.getByRole("heading", { name: "All sections", exact: true })).toBeVisible();
+  await expect(firstSlot.locator("article")).toHaveCount(2);
+  await expect(firstSlot).toContainText("Section S1");
+  await expect(firstSlot).toContainText("Section S2");
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("published-all-sections.png") });
+
+  await filters.getByLabel("Section", { exact: true }).selectOption(section2.id);
+  await filters.getByLabel("Include cancelled classes").check();
+  await filters.getByRole("button", { name: "Apply view" }).press("Enter");
+  await expect(page.getByRole("heading", { name: "Section S2", exact: true })).toBeVisible();
+  await expect(firstSlot.locator("article")).toHaveCount(1);
+  await expect(firstSlot).toContainText("R2");
+  const nextWeek = new URL(await page.getByRole("link", { name: "Next week" }).getAttribute("href") ?? "", page.url());
+  expect(nextWeek.searchParams.get("resource")).toBe(section2.id);
+  expect(nextWeek.searchParams.get("cancelled")).toBe("on");
+});
+
 test("drag move persists and conflicting drop leaves the saved class in place", async ({ page }) => {
   const draft = await storedDraft(); await login(page); await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(`/timetable?draft=${draft.id}`);
   const block = page.locator(".timetable-desktop article").filter({ hasText: "CS101" });

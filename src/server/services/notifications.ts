@@ -72,7 +72,7 @@ async function notificationView(
   const obligationIds = [...new Set(prepared.flatMap(p => p.changes.map(c => c.after.obligationId)))];
   const currentRows = obligationIds.length ? await tx.classOccurrence.findMany({
     where: { departmentId, teachingObligationId: { in: obligationIds }, schedulingStatus: "ACTIVE" },
-    select: { id: true, teachingObligationId: true, localDate: true, entry: { select: { timetableVersion: {
+    select: { id: true, teachingObligationId: true, localDate: true, sectionId: true, entry: { select: { timetableVersion: {
       select: { semesterId: true, semester: { select: { archived: true } } },
     } } } },
   }) : [];
@@ -104,7 +104,7 @@ async function notificationView(
             : published?.schedulingStatus === "ACTIVE" && !version?.semester.archived ? "Published assignment"
               : "Historical assignment · off the current timetable",
           timetableHref: current && version && !version.semester.archived
-            ? `/timetable?${new URLSearchParams({ semester: version.semesterId, week: current.localDate })}`
+            ? `/timetable?${new URLSearchParams({ semester: version.semesterId, week: current.localDate, resource: current.sectionId })}`
             : "/timetable",
         };
       }),

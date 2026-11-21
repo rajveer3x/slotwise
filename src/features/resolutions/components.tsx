@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { clockTime } from "@/domain/scheduling/timetable";
+import { clockTime, instant } from "@/domain/scheduling/timetable";
 import { rejectionLabels, tierNames, type Assignment, type Candidate, type Decisions } from "@/domain/resolution/engine";
 import type { ResolutionWorkspace } from "@/server/services/resolutions";
 import type { Board, ResolutionResult } from "./schema";
@@ -10,27 +10,31 @@ import { RequestSelectedConsent, statusLabel } from "@/features/covers/component
 import { PublicationReview } from "@/features/publications/components";
 import { OpenPollForm } from "@/features/makeup-polls/components";
 import type { readPollPreference } from "@/server/services/makeup-polls";
+import { LaunchEmergencyRound } from "@/features/emergency-cover/components";
+import type { readEmergencyChoice } from "@/server/services/emergency-cover";
 import { resolutionAction } from "./actions";
 
-type PollContext = {
+type ReviewContext = {
+  emergencyChoice?: Awaited<ReturnType<typeof readEmergencyChoice>>;
+  emergencyDate?: string;
   preference?: Awaited<ReturnType<typeof readPollPreference>>;
   latestPolls: Record<string, string>;
 };
-export function ResolutionWorkspaceView({ workspace: w, preference, latestPolls, pollId }:
-  PollContext & { workspace: ResolutionWorkspace; pollId?: string }) {
+export function ResolutionWorkspaceView({ workspace: w, preference, latestPolls, pollId, emergencyChoice, emergencyDate, roundId }:
+  ReviewContext & { workspace: ResolutionWorkspace; pollId?: string; roundId?: string }) {
   return <>
     <nav aria-label="Approved leave" className="my-6"><h2 className="mb-3 font-semibold">Approved leave</h2>{w.requests.length ? <ul className="grid gap-2">{w.requests.map(r => <li key={r.id}><Link className="inline-link" href={`/resolutions?leave=${encodeURIComponent(r.id)}`} aria-current={w.leaveId === r.id ? "page" : undefined}>{r.faculty.user.name} · {r.startDate} to {r.endDate}</Link></li>)}</ul> : <p className="schedule-panel">No approved leave yet. Not-held classes can be recovered separately below.</p>}</nav>
     <nav aria-label="Not-held recovery" className="my-6"><h2 className="mb-3 font-semibold">Not-held classes</h2>{w.missed.length ? <ul className="grid gap-2">{w.missed.map(r => <li key={r.id}><Link className="inline-link" href={`/resolutions?leave=${encodeURIComponent(r.id)}`} aria-current={w.leaveId === r.id ? "page" : undefined}>{r.teachingObligation.allocation.course.code} · {r.faculty.user.name} · {r.localDate} · Not held</Link></li>)}</ul> : <p>No unresolved not-held classes. Ordinary missed classes remain separate from leave.</p>}</nav>
-    {w.board && w.leaveId && <ResolutionBoard key={`${w.leaveId}/${pollId ?? ""}`} initial={w.board} leaveId={w.leaveId} preference={preference} latestPolls={latestPolls} />}
+    {w.board && w.leaveId && <ResolutionBoard key={`${w.leaveId}/${pollId ?? ""}/${roundId ?? ""}`} initial={w.board} leaveId={w.leaveId} preference={preference} latestPolls={latestPolls} emergencyChoice={emergencyChoice} emergencyDate={emergencyDate} />}
   </>;
 }
 function AssignmentView({ a, board }: { a: Assignment; board: Board }) {
   const label = (id: string) => board.labels[id] ?? "Unavailable record";
   return <span className="my-2 block text-sm"><span className="block font-medium">{label(a.allocationId)}</span><span className="block">{a.date} · {clockTime(a.startMinute)}–{clockTime(a.endMinute)}</span><span className="block">{label(a.facultyId)} · {label(a.sectionId)} · {a.roomId ? label(a.roomId) : "Online · no room required"}</span></span>;
 }
-function ResolutionBoard({ initial, leaveId, preference, latestPolls }: PollContext & { initial: Board; leaveId: string }) {
+function ResolutionBoard({ initial, leaveId, preference, latestPolls, emergencyChoice, emergencyDate }: ReviewContext & { initial: Board; leaveId: string }) {
   const [board, setBoard] = useState(initial), [decisions, setDecisions] = useState<Decisions>(initial.decisions);
-  const [active, setActive] = useState(preference?.occurrenceId ?? initial.items[0]?.original.occurrenceId), [feedback, setFeedback] = useState<ResolutionResult>();
+  const [active, setActive] = useState(emergencyChoice?.occurrenceId ?? preference?.occurrenceId ?? initial.items[0]?.original.occurrenceId), [feedback, setFeedback] = useState<ResolutionResult>();
   const [needsCompute, setNeedsCompute] = useState(false), [pending, startTransition] = useTransition();
   const [rejectionLimit, setRejectionLimit] = useState(20);
   const busy = useRef(false), requestId = useRef<string | null>(null);
@@ -66,6 +70,9 @@ function ResolutionBoard({ initial, leaveId, preference, latestPolls }: PollCont
     setDecisions(next); setNeedsCompute(true); requestId.current = null; run("compute", next);
   }
   const selectedCount = board.items.filter(i => i.selected).length;
+  const emergencyItem = board.items.find(i => i.original.occurrenceId === emergencyChoice?.occurrenceId);
+  const canLaunchEmergency = item && item.original.date === emergencyDate
+    && instant(item.original.date, item.original.startMinute) > new Date(board.computedAt);
   const preferredItem = board.items.find(i => i.original.occurrenceId === preference?.occurrenceId);
   return <section aria-labelledby="board-heading" aria-busy={pending}>
     <h2 id="board-heading" className="text-xl font-semibold">Resolution board</h2>
@@ -76,6 +83,22 @@ function ResolutionBoard({ initial, leaveId, preference, latestPolls }: PollCont
     <p role="status" className={feedback?.ok ? "mb-4 text-success" : "mb-4 text-danger"}>{feedback?.message}</p>
     {stale && <p role="status" className="mb-4 text-warning">This draft is stale. Recompute and review retained choices before saving.</p>}
     {needsCompute && <p className="mb-4 text-warning">Choices changed. Recompute to validate this batch before saving.</p>}
+    {emergencyChoice && <section className="schedule-panel mb-4 grid gap-3" aria-label="Emergency cover review">
+      <h3 className="font-semibold">{emergencyChoice.kind === "winner" ? "Emergency cover winner" : "Emergency fallback"}</h3>
+      {!emergencyItem || !emergencyChoice.candidateId ? <p>Review the current recovery options below.</p> : <>
+        {emergencyItem.selectionError && decisions.selected[emergencyChoice.occurrenceId] === emergencyChoice.candidateId
+          ? <p className="text-warning">{emergencyChoice.kind === "winner" ? "The accepted candidate is no longer valid in this batch. Clear the selection and review or cancel the round in Cover & exceptions." : "The proposed fallback changed. Clear the selection and review current options."}</p>
+          : <p>Recheck the exact candidate, save the draft, and review Before / After before publishing.</p>}
+        <div><Button variant="secondary" disabled={pending} onClick={() => {
+          const next = { ...decisions, selected: { ...decisions.selected, [emergencyChoice.occurrenceId]: emergencyChoice.candidateId! } };
+          setActive(emergencyChoice.occurrenceId);
+          setDecisions(next);
+          setNeedsCompute(true);
+          requestId.current = null;
+          run("compute", next);
+        }}>{emergencyChoice.kind === "winner" ? "Check emergency winner" : "Check emergency fallback"}</Button></div>
+      </>}
+    </section>}
     {preference && <section className="schedule-panel mb-4 grid gap-3" aria-label="Advisory poll result">
       <h3 className="font-semibold">Advisory poll result</h3>
       {!preference.candidateId ? <p>No current preference to carry into the draft.</p> : !preferredItem ? <p className="text-warning">This class is no longer unresolved. Recompute to review current classes.</p> : <>
@@ -91,6 +114,7 @@ function ResolutionBoard({ initial, leaveId, preference, latestPolls }: PollCont
     {!board.items.length ? <p className="schedule-panel">No classes to draft in this board. Review Not-held classes above for any missed replacements.</p> : <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <aside className="schedule-panel min-w-0" aria-label="Affected classes"><h3 className="mb-3 font-semibold">Affected classes</h3><ul className="grid gap-3">{board.items.map(i => <li key={i.original.occurrenceId}><button disabled={pending} aria-pressed={item?.original.occurrenceId === i.original.occurrenceId} onClick={() => { setActive(i.original.occurrenceId); setRejectionLimit(20); }} className={`w-full rounded-control border p-3 text-left ${item?.original.occurrenceId === i.original.occurrenceId ? "border-primary bg-primary-tint" : "border-border-control"}`}><AssignmentView a={i.original} board={board} /><span className="text-sm">{i.selectionError ? "Selection needs review" : i.selected ? "Selected · pending publication" : i.tier ? `${tierNames[i.tier]} available · unselected` : "Unresolved"}</span></button></li>)}</ul></aside>
       {item && <section className="schedule-panel min-w-0" aria-labelledby="candidates-heading"><h3 id="candidates-heading" className="text-lg font-semibold">Candidates for selected class</h3><AssignmentView a={item.original} board={board} />
+        {canLaunchEmergency && <LaunchEmergencyRound key={item.original.occurrenceId} occurrenceId={item.original.occurrenceId} />}
         <ol aria-label="Resolution tiers" className="my-4 flex flex-wrap gap-2">{tierNames.slice(1).map((name, index) => <li key={name} className={`rounded-control border px-2 py-1 text-sm ${item.tier === index + 1 ? "border-primary bg-primary-tint" : "border-border-subtle"}`}>{index + 1}. {name} · {item.tier === index + 1 ? "First viable tier" : item.skippedTiers.includes(index + 1) ? "No usable candidate" : "Not reached"}</li>)}</ol>
         {!item.searchComplete && <p className="my-3 text-warning">Search incomplete. A search limit was reached; no claim of proven infeasibility is made.</p>}
         {item.unresolvedReason && <p role="status" className="my-3 text-warning">Unresolved · {item.unresolvedReason}</p>}

@@ -1,10 +1,10 @@
 # SlotWise progress
 
-Last updated: 2026-11-15
+Last updated: 2026-11-19
 
 ## Verified current state
 
-Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Feature 012 adds bounded weekly timetable generation, proposal review and import into the existing draft editor. Feature 013 adds department-scoped CSV templates, read-only row preview, atomic import and published timetable export. Feature 014 adds advisory weekday makeup voting with one replaceable preference from the designated section representative and reuses validated recovery publication. Feature 015 adds revocable faculty and student calendar subscriptions with stable teaching-obligation event identities. Feature 016 adds department-scoped, read-only simulations for room closures and faculty absences. Feature 017 remains unimplemented. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
+Features 000–011 are implemented and the MVP is verified locally against PostgreSQL. Feature 005 adds a deterministic pure TypeScript five-tier engine, `/resolutions` with explanations and batch-aware selections, authorized durable drafts, and provisional faculty coverage estimates. A subsequent presentation refresh adapts the user's dashboard screenshot with Lovely Professional University branding, a charcoal sidebar, rounded gray/white workspace, and lime/lavender accents; see the UI refresh handoff below for checks. Approved leave retains unresolved obligations; draft resolution never reserves, publishes or credits delivery. Feature 006 adds authorized exact-cover responses, server expiry, Saturday HoD decisions, retained consent history and persisted in-app updates at `/cover-requests`. Responses and approvals reserve nothing. Feature 007 adds read-only Before/After subset review and atomic recovery publication with exact consent, replacement history, reservations, safe publication details, audit, notifications and retry receipts. Unselected items become superseded and need recomputation; delivery credit remains unchanged. Feature 008 adds assigned delivery confirmation, reasoned coordinator correction/history, unique obligation credit, separate not-held recovery sources and the semester contact-minutes ledger. All six acceptance criteria are verified locally; see its handoff below. Feature 009 adds department-scoped workload and leave recovery dashboards with real PostgreSQL-backed metrics, CSS bar charts and semantic tables. Feature 010 adds the recipient-scoped Notifications inbox, historical recovery details and durable acknowledgement counts. Feature 011 adds department-scoped audit history and a repeatable five-role browser demo. Feature 012 adds bounded weekly timetable generation, proposal review and import into the existing draft editor. Feature 013 adds department-scoped CSV templates, read-only row preview, atomic import and published timetable export. Feature 014 adds advisory weekday makeup voting with one replaceable preference from the designated section representative and reuses validated recovery publication. Feature 015 adds revocable faculty and student calendar subscriptions with stable teaching-obligation event identities. Feature 016 adds department-scoped, read-only simulations for room closures and faculty absences. Feature 017 adds atomic same-day cover rounds, durable PostgreSQL-backed expiry, and coordinator-only publication of emergency recovery. The inherited feature 000 ESLint 9 support limitation remains open; lint passes. Git remains on `main` with origin `https://github.com/rajveer3x/slotwise.git`; no deployment exists. Historical handoffs below describe their state at the time.
 
 ## MVP build order
 
@@ -27,7 +27,7 @@ Specifications are linked from [the feature index](feature-specs/README.md). Fol
 
 ## Optional backlog
 
-012 timetable generation, 013 CSV import/export, 014 makeup voting, 015 calendar feeds and 016 what-if simulation are implemented locally. 017 emergency cover mode remains optional. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
+012 timetable generation, 013 CSV import/export, 014 makeup voting, 015 calendar feeds and 016 what-if simulation and 017 emergency cover are implemented locally. Python solver, external messaging, PWA offline mode, Excel/PDF, SSO and portal integrations are deferred beyond these specs.
 
 ## Decisions and assumptions
 
@@ -47,7 +47,36 @@ Deadline, team size, marking rubric, mandated framework versions, hosting target
 
 ## Next action
 
-Use the README walkthroughs to demo the verified MVP, optional timetable generation, CSV import/export, makeup voting, calendar feeds and what-if simulation. Further optional features require a separate request. The inherited supported-lint-toolchain migration remains a separate maintenance item.
+Start with the [populated Computing demo](../README.md#start-with-a-populated-demo). Compare the student timetable with the pending HoD request, then approve the request to continue into recovery. The README also covers timetable generation, CSV, makeup voting, calendar feeds, simulation and emergency cover. The supported ESLint toolchain migration remains open.
+
+## Published timetable layout — 2026-11-19
+
+- Checked the reported parallel slots against PostgreSQL. Friday 27 November at 10:00 has CS101 for S1 in R1 and CS101 for S2 in R3, with different teachers. Thursday at 09:00 also uses distinct sections, teachers and rooms.
+- Updated the timetable route, `src/features/timetable/published-timetable.tsx`, and the shared stylesheet. Published Section view defaults to one section. The explicit All sections option labels parallel classes; Faculty and Room remain available. The compact grid and mobile agenda share class details, and the grid marks classes continuing through another displayed start time. Week navigation retains the selection and cancellation filter. Recovery notification links now open the affected section directly. README and UI context document the behavior.
+- `npm run typecheck`, `npm run lint`, `npm run build`, `npm run check:client-bundle`, and `git diff --check` passed. Unit tests passed 61/61 and PostgreSQL integration tests passed 145/145. `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/timetable.spec.ts tests/e2e/mvp-demo.spec.ts tests/e2e/leave.spec.ts tests/e2e/publication.spec.ts --workers=2` passed 32/32, including a regression with valid parallel classes.
+- Inspected the live demo in Chrome at desktop and phone sizes. Verified Section, All sections, Faculty, and Room filters, reflow at 320, 390, 768, and 1440 px, 200% CSS zoom, reduced-motion settings, and automated axe checks on desktop and mobile. Safari and manual screen-reader checks remain unverified. Next step is to use the section view for the populated demo.
+
+## Populated Computing demo — 2026-11-19
+
+- `prisma/demo-scenario.ts` and the `db:seed:scenario` package script use the existing synthetic Computing semester and accounts. The local-only command reuses normal timetable generation, draft import, preview, publication and faculty leave submission. The README documents both the scenario and the manual replay.
+- Applied to the running local database. Published 80 theory and lab classes across S1 and S2 from 23 November to 18 December 2026. The pending 23 November request affects one 60-minute CS101 Programming foundations class in S1. The existing draft and two earlier requests were preserved. SQL checks found zero overlapping reservations.
+- Rerun reused the published timetable and the same pending request. The production-mode guard refused execution. Chrome confirmed the student saw ten S1 classes for the example week, the HoD saw the affected class and approval action, and anonymous access redirected to sign-in.
+- `npm run typecheck`, `npm run lint`, `npm run build`, `npm run db:validate`, `npm run db:check`, `npm run check:client-bundle` and `git diff --check` passed. `npm test` passed 61/61 and `npm run test:integration` passed 145/145. `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/mvp-demo.spec.ts --workers=1` passed 2/2. The PostgreSQL driver reported its existing deprecation warning.
+- The scenario uses the seeded Autumn 2026 term. The setup leaves the request pending and delivery pending so the student can demonstrate those transitions. Browser tests with independent fixtures remain available for replay after the term ends.
+
+## Walkthrough verification — 2026-11-15
+
+Added the [project walkthrough](../SLOTWISE-WALKTHROUGH.md) and [file index](../SLOTWISE-FILE-INDEX.md) for interview preparation. The guide covers all specs, the role workflows, the two scheduling algorithms, data and transaction boundaries, local demo steps and practice questions. Application code was not changed during this walkthrough.
+
+| Check on Node 24.22.3 | Result |
+| --- | --- |
+| `npm run typecheck`, `npm run lint`, `npm run build` | Passed. |
+| `npm test`, `npm run test:integration` | 61/61 unit and 145/145 PostgreSQL integration tests passed. |
+| `npm run db:validate`, `npm run db:check`, `npm run check:client-bundle` | Passed. The scan included 50 client bundles. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/mvp-demo.spec.ts --workers=1` | 2/2 passed. The main scenario used five separate accounts, including two faculty. |
+| `SLOTWISE_TEST_NOW=2030-01-07T03:00:00.000Z PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/emergency-cover.spec.ts --workers=1` | 2/2 passed, including the offer race and worker fallback. |
+
+The browser rerun focused on the MVP and emergency suites. PostgreSQL driver deprecation warnings appeared during the passing integration and browser runs. Next step is to rehearse the demonstration with the walkthrough and trace an operation through its code before the interview.
 
 ## Documentation verification
 
@@ -970,3 +999,27 @@ Next step is to demo feature 015 using the README. Further optional features req
 | `npm run db:validate`, `npm run db:check`, `npm run check:client-bundle` | Passed. The bundle check inspected 50 bundles. |
 
 Next step is to demo feature 016 using the README walkthrough. Further optional features require a separate request.
+
+## Feature 017 handoff — 2026-11-15
+
+**Status:** complete locally. All four emergency cover acceptance criteria were verified against PostgreSQL. Run the expiry worker with the application to enable automatic fallback.
+
+- `prisma/schema.prisma` and the additive `20261115020000_emergency_cover` migration add EmergencyRound and EmergencyOffer, scoped foreign keys, a single winning offer reference, an exclusive-deadline state check, a partial unique live-round index and an indexed queue of due rounds. Migration 017 is applied to both local databases.
+- `src/server/services/emergency-cover.ts` and `emergency-store.ts` implement timed launch, scoped read/respond/cancel operations, current eligibility and deadline checks under locks, exact consent, idempotent receipts, audit and recipient-scoped notifications. Emergency launch includes all eligible tier-1 candidates from the existing bounded engine. Existing standard invitations and publication respect live emergency rounds. The exact winner must pass the launching coordinator’s normal saved draft and Before / After publication. The coordinator can cancel an invalid unpublished winner, then relaunch or select another tier.
+- `scripts/emergency-worker.ts` polls persisted deadlines every two seconds between passes. Expiry writes one fallback snapshot, audit event and coordinator inbox entry with the EXPIRED transition. The recovery board rechecks later tiers, and a new emergency round can explicitly retry substitutes. An interrupted worker leaves the job available on restart. A stopped worker delays fallback, while server-side acceptance still closes at the deadline. Neither acceptance nor expiry writes an assignment, delivery record or reservation.
+- `src/features/emergency-cover/`, `/cover-requests` and `/resolutions` reuse the existing shell, Button and schedule panel patterns. There are offer, pending, already-filled, expired, cancellation, empty and stale/error states, plus a link into explicit recovery review. Offers and final states appear through in-app navigation or refresh. A faculty member can miss the short response window. Hosted worker supervision remains deployment configuration.
+- The four isolated PostgreSQL tests use synthetic Monday classes and four eligible substitutes. They verify all offers, concurrent launch retries and accepts, one already-filled result, class-start cap and exact deadline, a response crossing the deadline during eligibility checks, changed availability, account deactivation, role checks and foreign department denial. A forced audit failure rolls back expiry. Two separate worker processes retry the uncommitted round and a third confirms there is no duplicate fallback, notification or assignment. Tests also verify coordinator-only winner publication and explicit cancellation/relaunch after availability changes.
+- The production-build Chrome tests use a frozen synthetic Monday. Two faculty tabs race using keyboard actions, the coordinator reviews and publishes, and a second case sees the durable fallback after a worker run. Anonymous and student navigation are denied. Inspected captured mobile and desktop offer/round panels. Checked reflow at 320, 390, 768 and 1440 px, 200% CSS zoom, reduced motion, and axe at 390 and 1440 px. Manual screen-reader testing was outside the checks.
+- React and Next.js concepts include scoped App Router Server Component reads, Client Components with transition and retry state, authorized Server Actions with route revalidation, and the existing explicit publication review. PostgreSQL owns winner and expiry state independently of the browser.
+
+| Command | Actual result |
+| --- | --- |
+| `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check` | Passed on Node 24.22.3. |
+| `npm test` | 61/61 passed. |
+| `npm run test:integration` | 145/145 passed, including four emergency cover cases. |
+| `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e` | 103 passed. The two emergency tests use the separate frozen-clock command below. |
+| `SLOTWISE_TEST_NOW=2030-01-07T03:00:00.000Z PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/e2e/emergency-cover.spec.ts` | 2/2 passed. |
+| `npm run db:migrate`, `npm run db:test:migrate`, `npm run db:validate`, `npm run db:check`, `npm run check:client-bundle` | Passed. Prisma schema diff was empty and 50 client bundles were checked. |
+| `npm run worker:emergency -- --once` | Exited successfully with zero due rounds on the local demo database. The isolated integration and browser cases exercised actual expiry. |
+
+Next step is to run the worker and follow the [README demonstration](../README.md#emergency-cover-demo-017).

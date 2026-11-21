@@ -10,6 +10,7 @@ import type { Candidate, Rejection } from "@/domain/resolution/engine";
 import { coverCommand, type CoverCommand, type CoverResult, type CoverWorkspace, type ConsentCard } from "@/features/covers/schema";
 import { buildResolutionBoard, recoveryPlanWhere, recoverySourceId, resolutionActor } from "./resolutions";
 import { candidateJson, consentEvent, consentFingerprint, expireCovers } from "./consent-store";
+import { liveEmergency } from "./emergency-store";
 import { ScheduleError, type Tx } from "./scheduling-store";
 
 const itemInclude = { plan: true, occurrence: { select: { leaveRequest: { select: { faculty: { select: { userId: true } } } } } } } as const;
@@ -148,6 +149,7 @@ async function createRequest(tx: Tx, actorId: string, departmentId: string, comm
   const startAt = instant(a.date, a.startMinute), endAt = instant(a.date, a.endMinute), now = new Date();
   if (startAt <= now) throw new ScheduleError("CONFLICT", "The candidate has already started.");
   if (command.operation === "invite") {
+    if (await tx.emergencyRound.findFirst({ where: { departmentId, occurrenceId: item.occurrenceId, ...liveEmergency } })) throw new ScheduleError("CONFLICT", "An emergency round is open or filled for this class. Review it in Cover & exceptions.");
     if (selected.tier !== 1) throw new ScheduleError("VALIDATION_ERROR", "Only a saved substitute candidate can be invited.");
     const faculty = await tx.faculty.findFirst({ where: { id: a.facultyId, departmentId, archived: false, user: { active: true, role: { not: "STUDENT" } } }, select: { userId: true } });
     if (!faculty) throw new ScheduleError("CONFLICT", "The invited faculty profile is no longer active.");

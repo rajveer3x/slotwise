@@ -89,7 +89,7 @@ function scoreSlot(a: Assignment, original: Assignment, retained: Assignment[], 
 }
 
 /** No I/O, clock reads, random values or mutations. Selected items are temporary batch reservations only. */
-export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { selected: {}, rejected: {} }, { selectFirst = false } = {}): ResolutionItem[] {
+export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { selected: {}, rejected: {} }, { selectFirst = false, allSubstitutes = false } = {}): ResolutionItem[] {
   let retained = [...s.active];
   const lockedChoices = new Set<string>();
   return [...s.affected].sort((a, b) => compare(a.date, b.date) || a.startMinute - b.startMinute || compare(a.occurrenceId, b.occurrenceId)).map(original => {
@@ -159,7 +159,7 @@ export function resolveBatch(s: ResolutionSnapshot, decisions: Decisions = { sel
     const selected = (selectedId ? candidates.find(c => c.id === selectedId) : selectFirst ? candidates[0] : null) ?? null;
     if (selected) { retained = [...retained.filter(a => !selected.removes.includes(a.occurrenceId)), ...selected.assignments]; for (const a of selected.assignments) lockedChoices.add(a.occurrenceId); }
     const selectionError = selectedId && !selected ? "Saved selection is no longer valid in this batch. Choose again or clear it." : null;
-    const visible = candidates.slice(0, 3);
+    const visible = allSubstitutes && tier === 1 ? candidates : candidates.slice(0, 3);
     if (selected && !visible.includes(selected)) visible[2] = selected;
     return { original, tier, candidates: visible, selected, rejections, searchComplete, skippedTiers, selectionError, unresolvedReason: !candidates.length ? !searchComplete ? "SEARCH_INCOMPLETE: search limit reached; infeasibility is not proven." : "NO_VALID_CANDIDATE: no option within the configured search window passes every hard rule." : null };
   });

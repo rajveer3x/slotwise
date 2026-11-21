@@ -49,6 +49,7 @@ model Department {
   deliveryRecords DeliveryRecord[]
   publications SchedulePublication[]
   makeupPolls MakeupPoll[]
+  emergencyRounds EmergencyRound[]
 
 }
 
@@ -71,6 +72,8 @@ model User {
   requestedExceptions SaturdayException[] @relation("ExceptionRequester")
   reviewedExceptions SaturdayException[] @relation("ExceptionReviewer")
   deliveryRecords DeliveryRecord[]
+  createdEmergencyRounds EmergencyRound[]
+  emergencyOffers EmergencyOffer[]
   createdMakeupPolls MakeupPoll[]
   makeupVotes PollVote[]
   calendarSubscriptions CalendarSubscription[]
@@ -368,6 +371,7 @@ model TeachingObligation {
 }
 model ClassOccurrence {
   makeupPolls MakeupPoll[]
+  emergencyRounds EmergencyRound[]
   deliveryRecords DeliveryRecord[]
   recoveryPlans ResolutionPlan[] @relation("RecoverySource")
   resolutionItems ResolutionItem[]
@@ -712,4 +716,46 @@ model DeliveryRecord {
   supersededAt DateTime? @db.Timestamptz(3)
   @@index([departmentId, obligationId])
   @@index([occurrenceId, createdAt])
+}
+
+enum EmergencyRoundStatus {
+  OPEN
+  WON
+  EXPIRED
+  CANCELLED
+}
+
+// An open round's deadline is also the durable expiry job.
+model EmergencyRound {
+  id String @id @default(cuid())
+  departmentId String
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  occurrenceId String
+  obligationId String
+  occurrence ClassOccurrence @relation(fields: [occurrenceId, departmentId, obligationId], references: [id, departmentId, teachingObligationId], onDelete: Restrict, onUpdate: NoAction)
+  createdById String
+  createdBy User @relation(fields: [createdById, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  status EmergencyRoundStatus @default(OPEN)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  deadline DateTime @db.Timestamptz(3)
+  closedAt DateTime? @db.Timestamptz(3)
+  winnerUserId String?
+  winner EmergencyOffer? @relation("EmergencyWinner", fields: [id, winnerUserId], references: [roundId, invitedUserId], onDelete: Restrict, onUpdate: NoAction)
+  offers EmergencyOffer[]
+  fallback Json?
+  @@unique([id, departmentId])
+  @@index([departmentId, createdById, createdAt])
+  @@index([occurrenceId, status])
+}
+
+model EmergencyOffer {
+  roundId String
+  departmentId String
+  round EmergencyRound @relation(fields: [roundId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  invitedUserId String
+  invitedUser User @relation(fields: [invitedUserId, departmentId], references: [id, departmentId], onDelete: Restrict, onUpdate: NoAction)
+  candidate Json
+  winningRounds EmergencyRound[] @relation("EmergencyWinner")
+  @@id([roundId, invitedUserId])
+  @@index([departmentId, invitedUserId])
 }

@@ -23,6 +23,7 @@ Store actual class instants as timezone-aware timestamps and user-entered leave/
 | LeaveRequest | faculty, inclusive dates, private reason, status, reviewer, decision timestamps |
 | ResolutionPlan / Item | approved leave or not-held source occurrence, baseScheduleRevision, policy snapshot, status; affected occurrence, tier, selected candidate, explanation and rejected alternatives |
 | SubstitutionRequest | plan item, invited faculty, proposed interval, status, expiry, response time |
+| EmergencyRound / EmergencyOffer | same-day leave occurrence, deadline, lifecycle, exact offers, single winner, proposed fallback |
 | SaturdayException | plan item, HOD reviewer, status, reason, approved candidate fingerprint |
 | MakeupPoll / MakeupPollOption / PollVote | unresolved obligation, immutable weekday options, base revision, deadline, lifecycle status and at most one current preference |
 | DeliveryRecord | obligation/occurrence, confirmed minutes, confirming faculty/coordinator, timestamp; corrections audited |
@@ -40,6 +41,7 @@ Implement schema incrementally by feature. Add foreign keys, uniqueness and inde
 | Approve leave and Saturday exceptions | Department HOD; cannot approve own leave |
 | Submit/withdraw pending leave | Owning FACULTY, including a HOD with a faculty profile |
 | Respond to cover request | Invited active faculty only |
+| Launch, cancel and publish emergency cover or fallback | Department COORDINATOR. The launching coordinator publishes the winning offer. |
 | Confirm delivery | Assigned faculty or department COORDINATOR; coordinator confirmations/corrections require an audit reason |
 | View timetable | Staff within scope; students only their section |
 | View workload, ledger, impact, audit | Department COORDINATOR and HOD; ADMIN for administration. FACULTY may view their own workload |
@@ -85,7 +87,13 @@ For weekday slots use a versioned integer score: +30 if it fills a section gap, 
 
 Plan states: DRAFT -> READY -> PUBLISHED or SUPERSEDED. Only fully valid, explicitly selected items may publish. For MVP publication is all-or-nothing for the selected subset; unselected unresolved items remain visible. Publishing a subset advances the revision and invalidates remaining old previews. Match accepted cover requests and Saturday approvals to the exact candidate fingerprint; a changed candidate needs a new response/approval.
 
-Core cover invites are coordinator-initiated with configurable expiry, default 24 hours capped by class start; skip requests that are already expired. Multiple accepts for one class cannot become multiple assignments. Acceptance rechecks timing and eligibility but does not reserve resources; publication rechecks again and may invalidate an accepted option if resources changed. Explain this distinction in the UI. The optional emergency feature adds short simultaneous-offer expiry.
+Core cover invites are coordinator-initiated with configurable expiry, default 24 hours capped by class start; skip requests that are already expired. Multiple accepts for one class cannot become multiple assignments. Acceptance rechecks timing and eligibility but does not reserve resources; publication rechecks again and may invalidate an accepted option if resources changed. Explain this distinction in the UI.
+
+## Emergency cover
+
+A coordinator can open one live round per unresolved occurrence linked to approved leave and scheduled for today in Asia/Kolkata. All current eligible substitutes receive exact offers. The default window is five minutes, capped by class start, with an exclusive deadline. The first valid acceptance sets the winner and closes the other offers. Publication rechecks the winner and uses the launching coordinator’s existing draft and review flow. A coordinator can cancel an unpublished round to relaunch or choose another option.
+
+At expiry without a winner, the worker proposes the first feasible tier after substitution and sends one in-app notice to the launching coordinator. The recovery board skips the substitute tier after expiry. Explicitly opening a new round enables a fresh substitute search. If the board or resources changed, recheck the recommendation or recompute before publishing. No round operation creates reservations or delivery credit.
 
 ## Advisory makeup voting
 

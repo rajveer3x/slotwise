@@ -157,6 +157,41 @@ textarea.input { resize: vertical; }
 .class-block .button { font-size: 12px; }
 .class-conflict { outline: 2px solid var(--color-danger); }
 .class-cancelled, .timetable-grid td .class-cancelled { background: #f0f0ed; border-left-color: #85877d; }
+.timetable-view-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.timetable-view-links .button[aria-current="page"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
+.app-content .published-timetable-filters { grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)); gap: 12px; padding: 16px; }
+.published-timetable-filters .timetable-cancelled-filter { grid-column: 1 / -1; display: flex; align-items: center; width: fit-content; min-height: 44px; }
+.timetable-cancelled-filter input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+.published-week-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.published-timetable-grid { min-width: 790px; }
+.published-timetable-grid th { padding: 10px 8px; font-size: 13px; font-weight: 600; }
+.published-timetable-grid th:first-child { width: 66px; }
+.published-timetable-grid thead time { display: block; font-weight: 400; color: var(--color-text-secondary); }
+.published-timetable-grid tbody th { font-variant-numeric: tabular-nums; }
+.published-timetable-grid td { height: auto; padding: 6px; }
+.published-class.class-block, .published-timetable-grid td .published-class.class-block {
+  background: var(--color-info-tint);
+  border-left-color: #9b87ce;
+  border-radius: 8px;
+  padding: 8px 9px;
+  margin: 0;
+  line-height: 1.35;
+}
+.published-class.class-block + .published-class.class-block { margin-top: 6px; }
+.published-class.class-block h3 { font-size: 14px; font-weight: 650; text-wrap: wrap; }
+.published-class.class-block p + p, .published-class.class-block h3 + p { margin-top: 3px; }
+.published-class.class-block p.published-class-section { display: inline-block; margin-bottom: 4px; padding: 1px 5px; border-radius: 4px; background: var(--color-lime); color: var(--color-text-primary); font-size: 12px; font-weight: 600; }
+.published-class.class-block .published-class-time { font-variant-numeric: tabular-nums; }
+.published-class.class-block .published-class-status { margin-top: 4px; color: var(--color-text-secondary); font-size: 12px; }
+.published-class.class-block .published-class-status[data-delivery="HELD"] { color: var(--color-success); }
+.published-class.class-block .published-class-status[data-delivery="NOT_HELD"] { color: var(--color-warning); }
+.published-class.class-block .published-class-recovery { color: var(--color-info); }
+.published-class.class-block[data-cancelled="true"], .published-timetable-grid td .published-class.class-block[data-cancelled="true"] { background: var(--color-surface-subtle); border-left-color: var(--color-border-control); }
+.published-class-continuation { padding: 4px 7px; border-left: 2px solid var(--color-lavender); color: var(--color-text-secondary); font-size: 12px; line-height: 1.4; }
+.published-class + .published-class-continuation, .published-class-continuation + .published-class-continuation { margin-top: 6px; }
+.published-agenda-day { margin-bottom: 10px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-canvas); }
+.published-agenda-day > h3 { margin-bottom: 7px; font-size: 14px; font-weight: 650; }
+.published-agenda-day > h3 time { margin-left: 4px; color: var(--color-text-secondary); font-weight: 500; }
 .sidebar-nav { display: grid; gap: 9px; }
 .sidebar-link { min-height: 47px; display: flex; align-items: center; gap: 13px; padding: 11px 15px; color: #ddded6; font-size: 13px; border-radius: 999px; text-decoration: none; transition: background-color 150ms, color 150ms; }
 .sidebar-link:hover { background: #35362f; color: #fff; }

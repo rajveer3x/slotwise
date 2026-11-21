@@ -8,6 +8,7 @@ import { instant } from "@/domain/scheduling/timetable";
 import { assignmentErrors, type Candidate } from "@/domain/resolution/engine";
 import { publicationCommand, type PublicationPreview, type PublicationResult } from "@/features/publications/schema";
 import { buildResolutionBoard, recoveryPlanWhere, resolutionActor } from "./resolutions";
+import { emergencyPublicationConsent } from "./emergency-store";
 import { assertExactConsent, invalidateItemConsent } from "./consent-store";
 import { asAssignment, occurrenceInclude, ScheduleError, type Tx } from "./scheduling-store";
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -28,6 +29,7 @@ async function prepare(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>
     if (!current || current.id !== i.selected!.id) throw new ScheduleError("CONFLICT", "The selected subset needs recomputation against current resources and tier order.");
     return { item: plan.items.find(p => p.occurrenceId === i.original.occurrenceId)!, candidate: current };
   });
+  const emergencyConsent: string[] = [];
   const changes: PublicationPreview["changes"] = [], blockers: string[] = [];
   const allAssignments = candidates.flatMap(c => c.candidate.assignments);
   if (new Set(allAssignments.map(a => a.obligationId)).size !== allAssignments.length) throw new ScheduleError("CONFLICT", "Two selected items change the same teaching obligation.");
@@ -36,7 +38,11 @@ async function prepare(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>
   for (const { item, candidate } of candidates) {
     const errors = assignmentErrors(candidate.assignments, [...retained, ...allAssignments.filter(a => !candidate.assignments.includes(a))], snapshot, candidate.tier);
     if (errors.length) throw new ScheduleError("CONFLICT", `A selected class conflicts with the current schedule: ${errors.join(", ")}. No changes published.`);
-    try { await assertExactConsent(tx, actor.departmentId, item.id, candidate); }
+    try {
+      const roundId = await emergencyPublicationConsent(tx, actor.departmentId, actor, candidate);
+      if (roundId) emergencyConsent.push(roundId);
+      else await assertExactConsent(tx, actor.departmentId, item.id, candidate);
+    }
     catch (error) { if (!(error instanceof ScheduleError)) throw error; blockers.push(error.message); }
     const url = candidate.tier === 4 ? meetingUrl(command.meetingUrls[item.occurrenceId]) : null;
     if (candidate.tier === 4 && !url) blockers.push("Each selected online class needs a valid HTTPS meeting URL without embedded credentials.");
@@ -69,7 +75,7 @@ async function prepare(tx: Tx, actor: Awaited<ReturnType<typeof resolutionActor>
   }));
   const recipients = audience.map(({ id, name, role }) => ({ id, name, role }));
   const preview = { token: board.token, planVersion: plan.version, revision: board.revision, changes, selectedCount: selected.length, unresolved: board.items.filter(i => !command.occurrenceIds.includes(i.original.occurrenceId)).map(i => i.original), recipients, blockers: [...new Set(blockers)], labels: Object.fromEntries(Object.entries(board.labels).sort(([a], [b]) => a.localeCompare(b))) };
-  return { plan, candidates, recipientScopes, preview: { ...preview, fingerprint: hash({ ...preview, recipientScopes, consent: board.history.filter(h => command.occurrenceIds.includes(h.occurrenceId)) }) } };
+  return { plan, candidates, recipientScopes, preview: { ...preview, fingerprint: hash({ ...preview, recipientScopes, emergencyConsent, consent: board.history.filter(h => command.occurrenceIds.includes(h.occurrenceId)) }) } };
 }
 export async function mutatePublication(input: unknown) { return changePublication(await sessionIdentity(), input); }
 export async function changePublication(actorId: string | null, input: unknown): Promise<PublicationResult> {

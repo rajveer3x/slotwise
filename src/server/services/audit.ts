@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { requireScope } from "@/server/auth/permissions";
 import { AccessError } from "@/server/auth/session";
 import { getDb } from "@/server/db";
+import { emergencyWorkerActor } from "./emergency-store";
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
 const date = z.iso.date().refine(value => value >= "0001-01-01" && value <= "9999-12-31");
@@ -41,7 +42,12 @@ const poll = { status: z.enum(["OPEN", "CLOSED", "CANCELLED", "SUPERSEDED"]), op
 
 // Stored JSON is never rendered directly. Each action gets its own approved fields,
 // including at nested levels. Staff-entered audit reasons are approved only here.
+const emergency = { status: z.enum(["NONE", "OPEN", "WON", "EXPIRED", "CANCELLED"]), nextTier: z.number().int().min(2).max(5).nullable() };
 const actions = {
+  EMERGENCY_OPENED: ["Emergency cover opened", emergency],
+  EMERGENCY_WON: ["Emergency cover accepted", emergency],
+  EMERGENCY_EXPIRED: ["Emergency cover expired", emergency],
+  EMERGENCY_CANCELLED: ["Emergency cover cancelled", emergency],
   CSV_MASTER_IMPORTED: ["CSV master data imported", { kind: z.enum(["faculty", "course", "room"]), count: integer, recordIds: z.array(id) }],
   TIMETABLE_DRAFT_CREATED: ["Timetable draft created", timetable],
   TIMETABLE_DRAFT_SAVED: ["Timetable draft saved", timetable],
@@ -125,7 +131,8 @@ export async function readAudit(actorId: string | null, input: unknown) {
       where: { departmentId, id: { in: actorIds } }, select: { id: true, name: true },
     });
     const names = new Map(users.map(user => [user.id, user.name]));
-    const actors = actorIds.map(id => ({ id, name: names.get(id) ?? "Historical account" }))
+    const actorName = (id: string) => names.get(id) ?? (id === emergencyWorkerActor ? "Emergency expiry worker" : "Historical account");
+    const actors = actorIds.map(id => ({ id, name: actorName(id) }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     const where: Prisma.AuditEventWhereInput = {
       departmentId, actorId: filterActor || undefined, action: action || undefined, entityId: entity || undefined,
@@ -142,7 +149,7 @@ export async function readAudit(actorId: string | null, input: unknown) {
       skip: (currentPage - 1) * pageSize, take: pageSize,
     });
     function summary(row: typeof rows[number]) {
-      return { id: row.id, actorId: row.actorId, actor: names.get(row.actorId) ?? "Historical account",
+      return { id: row.id, actorId: row.actorId, actor: actorName(row.actorId),
         action: definition(row.action)?.[0] ?? "Other historical action", entityId: row.entityId, createdAt: row.createdAt.toISOString() };
     }
     return { actors, filters, error, total, page: currentPage, pages, rows: rows.map(summary),
